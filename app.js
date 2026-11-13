@@ -23,14 +23,27 @@ const fW = new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, weekday: 'short' });
 const fK = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 const fM = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', month: 'long', year: 'numeric' });
 const ms = t => typeof t === 'number' ? t : Date.parse(t);
-const fmtD = t => t ? fD.format(ms(t)) : '—';
-const fmtDs = t => t ? fDs.format(ms(t)) : '—';
-const fmtH = t => t ? fH.format(ms(t)) : '—';
-const fmtDH = t => t ? fmtD(t) + ' ' + fmtH(t) : '—';
-const wday = t => fW.format(ms(t)).replace('.', '');
-const dayKey = t => fK.format(ms(t));
-const monthOf = t => dayKey(t).slice(0, 7);
-const fmtMonth = ym => { const s = fM.format(new Date(ym + '-15T12:00:00Z')); return s.charAt(0).toUpperCase() + s.slice(1); };
+const validMs = t => { const n = ms(t); return Number.isFinite(n) ? n : null; };
+const fmtD = t => { const n = validMs(t); return n != null ? fD.format(n) : '—'; };
+const fmtDs = t => { const n = validMs(t); return n != null ? fDs.format(n) : '—'; };
+const fmtH = t => { const n = validMs(t); return n != null ? fH.format(n) : '—'; };
+const fmtDH = t => { const n = validMs(t); return n != null ? fmtD(n) + ' ' + fmtH(n) : '—'; };
+const wday = t => { const n = validMs(t); return n != null ? fW.format(n).replace('.', '') : ''; };
+const dayKey = t => { const n = validMs(t); return n != null ? fK.format(n) : ''; };
+const monthOf = t => {
+  const k = dayKey(t);
+  if (k) return k.slice(0, 7);
+  const s = String(t || '');
+  return /^\d{4}-\d{2}/.test(s) ? s.slice(0, 7) : '';
+};
+const fmtMonth = ym => {
+  const m = String(ym || '').slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(m)) return '—';
+  const d = new Date(m + '-15T12:00:00Z');
+  if (!Number.isFinite(d.getTime())) return '—';
+  const s = fM.format(d);
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
 const localToIso = s => s && s.length === 16 ? s + ':00-03:00' : s;
 const initials = n => String(n || '?').split(' ').filter(w => w.length > 2 || /^[A-Z]/.test(w)).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 const normTxt = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -891,15 +904,16 @@ function tabs(key, list) { const cur = S.tabs[key] || list[0][0]; return `<div c
 // ───────── MASTER: WhatsApp ─────────
 PAGES.whatsapp = () => {
   const W = S.data.whatsapp, t = S.tabs.wa || 'todas';
-  const list = W.filter(w => t === 'todas' || w.status === t).sort((a, b) => ms(a.starts_at) - ms(b.starts_at));
+  const waWhen = w => w.starts_at || w.data_plantao;
+  const list = W.filter(w => t === 'todas' || w.status === t).sort((a, b) => (validMs(waWhen(a)) || 0) - (validMs(waWhen(b)) || 0));
   const cf = c => c ? tag(CONF[c]?.[0] || c, CONF[c]?.[1] || 'gray') : '';
   return header('Trocas do WhatsApp', 'Histórico importado do grupo (somente leitura). Cada mensagem pode ser aplicada à escala vigente quando a escala daquele mês estiver carregada; a original não muda.') +
     tabs('wa', [['todas', 'Todas', W.length], ['importada', 'Prontas para aplicar', W.filter(w => w.status === 'importada').length], ['a_revisar', 'A revisar', W.filter(w => w.status === 'a_revisar').length], ['aplicada', 'Aplicadas', W.filter(w => w.status === 'aplicada').length], ['descartada', 'Descartadas', W.filter(w => w.status === 'descartada').length]]) +
-    `<div class="table-wrap"><table class="tbl"><thead><tr><th>Plantão</th><th>Setor (mensagem)</th><th>Sai</th><th>Entra</th><th>Status</th><th></th></tr></thead><tbody>${list.map(w => `<tr><td>${fmtD(w.starts_at)}<div class="muted small">${esc(w.horario)}</div></td><td>${esc(w.setor_texto || '')}<div class="muted small">${esc(w.especialidade || '')}</div></td>
+    `<div class="table-wrap"><table class="tbl"><thead><tr><th>Plantão</th><th>Setor (mensagem)</th><th>Sai</th><th>Entra</th><th>Status</th><th></th></tr></thead><tbody>${list.map(w => `<tr><td>${w.starts_at ? fmtD(w.starts_at) : (w.data_plantao ? w.data_plantao.split('-').reverse().join('/') : '—')}<div class="muted small">${esc(w.horario || '')}</div></td><td>${esc(w.setor_texto || '')}<div class="muted small">${esc(w.especialidade || '')}</div></td>
      <td>${esc(w.sai_texto)}<div class="small">${w.sai_doctor_id ? '→ ' + esc(docName(w.sai_doctor_id)) + ' ' + cf(w.match_sai || 'alta') : tag('não identificado', 'red')}</div></td><td>${esc(w.entra_texto)}<div class="small">${w.entra_doctor_id ? '→ ' + esc(docName(w.entra_doctor_id)) + ' ' + cf(w.match_entra || 'alta') : tag('não identificado', 'red')}</div></td>
-     <td>${tag(...({ importada: ['Pronta', 'blue'], a_revisar: ['A revisar', 'orange'], aplicada: ['Aplicada', 'green'], descartada: ['Descartada', 'gray'] }[w.status]))}${w.observacao ? `<div class="muted small">${esc(w.observacao)}</div>` : ''}</td>
+     <td>${tag(...({ importada: ['Pronta', 'blue'], a_revisar: ['A revisar', 'orange'], aplicada: ['Aplicada', 'green'], descartada: ['Descartada', 'gray'] }[w.status] || [w.status || '—', 'gray']))}${w.observacao ? `<div class="muted small">${esc(w.observacao)}</div>` : ''}</td>
      <td class="nowrap">${['importada', 'a_revisar'].includes(w.status) ? `<button class="btn small" data-act="waFix" data-id="${w.id}">Revisar</button> <button class="btn small primary" data-act="waApply" data-id="${w.id}" ${w.sai_doctor_id && w.entra_doctor_id ? '' : 'disabled'}>Aplicar</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nada aqui.</td></tr>'}</tbody></table></div>
-    <p class="muted small">As mensagens importadas são de ${[...new Set(W.map(w => fmtMonth(monthOf(w.starts_at))))].join(', ')}. Aplicar procura o plantão do médico que sai, no mesmo dia e horário, na escala carregada.</p>`;
+    <p class="muted small">As mensagens importadas são de ${[...new Set(W.map(w => monthOf(w.starts_at || w.data_plantao)).filter(Boolean))].map(fmtMonth).join(', ') || '—'}. Aplicar procura o plantão do médico que sai, no mesmo dia e horário, na escala carregada.</p>`;
 };
 function waFix(id) {
   const w = S.data.whatsapp.find(x => String(x.id) === String(id)), ds = S.data.doctors.slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -1220,7 +1234,7 @@ A.waApply = async id => {
   if (REAL) { const r = await rpc('apply_whatsapp_swap', { p_id: id }); return done(r === 'aplicada' ? 'Troca aplicada à escala vigente.' : 'Plantão correspondente não está na escala carregada (veja a observação).'); }
   const w = S.data.whatsapp.find(x => String(x.id) === String(id));
   const s = S.data.shifts.find(x => x.doctor_id === w.sai_doctor_id && x.status === 'active' && ms(x.starts_at) === ms(w.starts_at) && ms(x.ends_at) === ms(w.ends_at));
-  if (!s) { w.observacao = `Plantão correspondente não encontrado na escala carregada (${fmtMonth(monthOf(w.starts_at))} ainda não foi importado).`; await done(); return toast('A escala deste mês ainda não está carregada; a mensagem fica pronta para aplicar depois.', true); }
+  if (!s) { w.observacao = `Plantão correspondente não encontrado na escala carregada (${fmtMonth(monthOf(w.starts_at || w.data_plantao)) || 'mês'} ainda não foi importado).`; await done(); return toast('A escala deste mês ainda não está carregada; a mensagem fica pronta para aplicar depois.', true); }
   if (!inSector(w.entra_doctor_id, s.sector_id)) doc(w.entra_doctor_id).sector_ids.push(s.sector_id);
   const t = new Date().toISOString(), sw = { id: rid('troca'), requester_id: w.sai_doctor_id, target_id: w.entra_doctor_id, shift_from_id: s.id, shift_to_id: null, kind: 'substitution', status: 'completed', origin: 'whatsapp', note: 'Importada do WhatsApp: ' + (w.texto_original || '').slice(0, 300), created_at: t, completed_at: t, approved_by: 'Importada do WhatsApp (MASTER)' };
   S.data.swaps.unshift(sw); S.data.history.push({ shift_id: s.id, from: s.doctor_id, to: w.entra_doctor_id, swap_id: sw.id, motivo: 'whatsapp', changed_by_name: 'MASTER', changed_at: t });
@@ -6230,6 +6244,6 @@ window.addEventListener('hashchange', () => {
   if (rt) { S.me = null; S.login = { step: 'nova_senha', token: rt[1] }; demoSave(); return route(); }
   if (!S.me && inviteToken()) renderLogin();
 });
-window.EscalaMed = { S, A, version: '4.13', Assistente: typeof Assistente !== 'undefined' ? Assistente : null };
+window.EscalaMed = { S, A, version: '4.14', Assistente: typeof Assistente !== 'undefined' ? Assistente : null };
 boot();
 })();
