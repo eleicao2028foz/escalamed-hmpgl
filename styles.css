@@ -407,3 +407,14 @@ body.printing-ponto .ev-no-print,body.printing-ponto .ev-sec .btn{display:none!i
   body.printing-ponto .ev-so-tbl th,body.printing-ponto .ev-so-tbl td{border-bottom:0.3pt solid #ccc;padding:2mm 2mm;text-align:left;vertical-align:top}
   body.printing-ponto .ev-so-tbl th{font-size:9pt;border-bottom:0.6pt solid #000}
 }
+
+/* v4.13 · horário editável e médicos cedidos */
+button.esc-hora-btn{display:inline-block;margin:2px 0 4px;padding:2px 6px;border:1px dashed rgba(255,255,255,.45);border-radius:6px;background:transparent;color:#cfe0ee;font:inherit;font-weight:600;cursor:pointer}
+button.esc-hora-btn:hover,button.esc-hora-btn:focus{background:rgba(255,255,255,.14);color:#fff;border-color:#fff}
+.esc-hora-mark{display:block;margin-top:2px;font-size:10px;font-weight:700;color:#0b3b66;background:#e8f3ff;border-radius:4px;padding:1px 4px;width:fit-content}
+td.esc-hora-over{box-shadow:inset 0 -2px 0 #3a7ebd}
+.esc-hora-scope{display:flex;flex-direction:column;gap:6px}
+.esc-hora-scope .esc-rep-lab{font-weight:600;margin-bottom:2px}
+.esc-hora-scope input[type=number]{width:4.5rem;margin-left:6px}
+.esc-hab-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+span.ctr-mark.cedido{background:#e8f3ff;color:#0b3b66;border:0;font-weight:700;padding:1px 6px;border-radius:999px;font-size:11px}

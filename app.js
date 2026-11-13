@@ -149,7 +149,7 @@ function demoSave() {
   const ctr = d._ctrDirty ? { contracts: d.contracts, ctrLinks: d.ctrLinks, ctrAreas: d.ctrAreas, fonteContratos: d.fonteContratos } : null;
   const keep = { v: 10, ctr, patch, doctors: d.doctors, swaps: d.swaps, requests: d.requests, invites: d.invites, history: d.history, audit: d.audit.slice(0, 1000),
     accounts: d.accounts, notifications: d.notifications.slice(0, 500), settings: d.settings, whatsapp: d.whatsapp, users: d.users || [], resets: (d.resets || []).filter(r => r.exp > Date.now()),
-    schedules: d.schedules, escalas: d.escalas || [], extraShifts, removedShifts, aliasesNomes: d.aliasesNomes || {}, layoutMaps: d.layoutMaps || {}, importNotes: d.importNotes || [], extraTurnos: d.extraTurnos || {}, removedTurnos: d.removedTurnos || {}, eventosAdversos: d.eventosAdversos || [] };
+    schedules: d.schedules, escalas: d.escalas || [], extraShifts, removedShifts, aliasesNomes: d.aliasesNomes || {}, layoutMaps: d.layoutMaps || {}, importNotes: d.importNotes || [], extraTurnos: d.extraTurnos || {}, removedTurnos: d.removedTurnos || {}, horarioEdits: d.horarioEdits || {}, eventosAdversos: d.eventosAdversos || [] };
   try { if (S.me?.user_id) sessionStorage.setItem(LS_KEY + '_sessao', S.me.user_id); else sessionStorage.removeItem(LS_KEY + '_sessao'); } catch (e) { /* sem sessionStorage */ }
   try { localStorage.setItem(LS_KEY, JSON.stringify(keep)); } catch (e) { console.warn('Não foi possível salvar a demonstração:', e.message); }
 }
@@ -176,7 +176,7 @@ function demoLoad() {
     }
     if (saved.aliasesNomes) S.data.aliasesNomes = saved.aliasesNomes;
     if (saved.layoutMaps) S.data.layoutMaps = saved.layoutMaps;
-    ['importNotes', 'extraTurnos', 'removedTurnos'].forEach(k => { if (saved[k]) S.data[k] = saved[k]; });
+    ['importNotes', 'extraTurnos', 'removedTurnos', 'horarioEdits'].forEach(k => { if (saved[k]) S.data[k] = saved[k]; });
   }
   const brunaDoc = (S.data.doctors || []).find(d => d.matricula === '105895');
   const brunaAcc = (S.data.accounts || []).find(a => a.user_id === 'u-bruna' || (brunaDoc && a.doctor_id === brunaDoc.id));
@@ -292,6 +292,10 @@ async function realLoad() {
   }
   S.data.aliasesNomes = S.data.aliasesNomes || {};
   S.data.layoutMaps = S.data.layoutMaps || {};
+  S.data.horarioEdits = S.data.horarioEdits || {};
+  if (staff && typeof escLoadHorariosReal === 'function') {
+    await escLoadHorariosReal();
+  }
   if (staff) {
     try {
       const als = await fetchAll('name_aliases');
@@ -821,9 +825,11 @@ function pontoRows(m) {
     const n = (x.origin === 'whatsapp' ? 'Troca do WhatsApp: ' : x.kind === 'reciprocal' ? 'Troca recíproca aprovada: ' : 'Troca aprovada: ') + docName(x.requester_id) + (x.kind === 'reciprocal' ? ' ⇄ ' : ' → ') + docName(x.target_id);
     [x.shift_from_id, x.shift_to_id].filter(Boolean).forEach(id => (swapNote[id] = n));
   });
-  const shifts = S.data.shifts.filter(s => s._month === m && pubShift(s) && s.doctor_id && ['active', 'conflito'].includes(s.status)).map(s => ({
+  const shifts = S.data.shifts.filter(s => s._month === m && pubShift(s) && s.doctor_id && ['active', 'conflito'].includes(s.status)).map(s0 => {
+    const s = typeof escShiftEffectiveTimes === 'function' ? escShiftEffectiveTimes(s0) : s0;
+    return {
     id: s.id, startTs: s.starts_at, endTs: s.ends_at, doctorId: s.doctor_id, sector: secName(s.sector_id), local: s.local, type: s.type, conf: s.match_conf, texto: s.source_text,
-    swapNote: swapNote[s.id] || (changed(s) ? `Responsável alterado: ${docName(s.original_doctor_id)} → ${docName(s.doctor_id)}` : '') }));
+    swapNote: swapNote[s.id] || (changed(s) ? `Responsável alterado: ${docName(s.original_doctor_id)} → ${docName(s.doctor_id)}` : '') }; });
   const [y, mo] = m.split('-').map(Number), end = Date.parse(`${mo === 12 ? y + 1 : y}-${String(mo === 12 ? 1 : mo + 1).padStart(2, '0')}-01T23:59:59-03:00`), start = Date.parse(m + '-01T00:00:00-03:00') - 864e5;
   const punches = S.data.punches.filter(p => { const t = ms(p.ts); return t >= start && t <= end; });
   const ids = new Set(shifts.map(s => s.doctorId));
@@ -1943,7 +1949,8 @@ async function escSaveSectorDraft(ym, sectorId, items, escalaId) {
 
 function escWarnings(ym) {
   const out = [];
-  const shifts = escShiftsOf(ym);
+  const rawShifts = escShiftsOf(ym);
+  const shifts = typeof escShiftEffectiveTimes === 'function' ? rawShifts.map(escShiftEffectiveTimes) : rawShifts;
   const bySec = new Map();
   shifts.forEach(s => {
     (bySec.get(s.sector_id) || bySec.set(s.sector_id, []).get(s.sector_id)).push(s);
@@ -1979,7 +1986,8 @@ function escWarnings(ym) {
   const nxt = mm === 12 ? (yy + 1) + '-01' : yy + '-' + String(mm + 1).padStart(2, '0');
   const seenSh = new Set();
   const around = [];
-  [...escShiftsOf(prev), ...shifts, ...escShiftsOf(nxt)].forEach(s => {
+  [...escShiftsOf(prev), ...rawShifts, ...escShiftsOf(nxt)].forEach(s0 => {
+    const s = typeof escShiftEffectiveTimes === 'function' ? escShiftEffectiveTimes(s0) : s0;
     if (seenSh.has(s.id)) return;
     seenSh.add(s.id);
     around.push(s);
@@ -2022,7 +2030,7 @@ function escWarnings(ym) {
       out.push({ k: 'hab', setorId: s.sector_id, day: +dayKey(s.starts_at).slice(8), txt: `${docName(s.doctor_id)} não tem habilitação em ${secName(s.sector_id)} (${fmtD(s.starts_at)} ${fmtH(s.starts_at)})` });
     } else if (ctrHasData()) {
       const cr = ctrShiftCheck(s);
-      if (cr) out.push({ k: 'contrato', setorId: s.sector_id, escalaId: s.escala_id, day: +dayKey(s.starts_at).slice(8), txt: `${docName(s.doctor_id)}: ${cr.motivo} — ${cr.detalhe} (${secName(s.sector_id)}, ${fmtD(s.starts_at)} ${fmtH(s.starts_at)})` });
+      if (cr && cr.k !== 'cedido') out.push({ k: 'contrato', setorId: s.sector_id, escalaId: s.escala_id, day: +dayKey(s.starts_at).slice(8), txt: `${docName(s.doctor_id)}: ${cr.motivo} — ${cr.detalhe} (${secName(s.sector_id)}, ${fmtD(s.starts_at)} ${fmtH(s.starts_at)})` });
     } else if ((S.data.contractDoctors || []).length && !escHasContrato(s.doctor_id, s.sector_id, ym)) {
       out.push({ k: 'contrato', setorId: s.sector_id, day: +dayKey(s.starts_at).slice(8), txt: `${docName(s.doctor_id)} está sem contrato nesse setor (${secName(s.sector_id)}, ${fmtD(s.starts_at)})` });
     }
@@ -2061,28 +2069,48 @@ function escTurnoCmp(a, b) {
 }
 function escGrid(ym, sectorId, escalaId) {
   const eid = escalaId || null;
+  const hmap = typeof escHorarioMap === 'function' ? escHorarioMap(ym, sectorId, eid) : { cols: {}, days: {} };
   const list = escShiftsOf(ym, sectorId, eid);
   let turnos = [];
   const seen = new Set();
+  const colTimes = {};
   list.forEach(s => {
-    const start = fmtH(s.starts_at), end = fmtH(s.ends_at);
-    const key = start + '-' + end + (s.local || '');
+    const key = typeof escShiftTurnoKey === 'function' ? escShiftTurnoKey(s, hmap) : (fmtH(s.starts_at) + '-' + fmtH(s.ends_at) + (s.local || ''));
+    const start0 = fmtH(s.starts_at), end0 = fmtH(s.ends_at);
+    const day = +dayKey(s.starts_at).slice(8);
+    const ov = (hmap.days || {})[key + '|' + day];
+    const isOv = ov && ov.start === start0 && ov.end === end0;
+    if (!isOv && !colTimes[key]) colTimes[key] = { start: start0, end: end0, type: s.type, local: s.local || '' };
     if (seen.has(key)) return; seen.add(key);
-    turnos.push({ key, label: (s.local ? s.local + ' · ' : '') + start + '–' + end, start, end, type: s.type, local: s.local || '' });
+    const parts = typeof escKeyParts === 'function' ? escKeyParts(key) : null;
+    const col = (hmap.cols || {})[key];
+    const start = (col && col.start) || (colTimes[key] && colTimes[key].start) || (parts && parts.start) || start0;
+    const end = (col && col.end) || (colTimes[key] && colTimes[key].end) || (parts && parts.end) || end0;
+    const local = s.local || (parts && parts.local) || '';
+    turnos.push({ key, label: (local ? local + ' · ' : '') + start + '–' + end, start, end, type: s.type, local });
   });
   const tk = escTurnoStoreKey(ym, sectorId, eid);
-  ((S.data.extraTurnos || {})[tk] || (S.data.extraTurnos || {})[ym + '|' + sectorId] || []).forEach(x => { if (!turnos.some(t => t.key === x.key)) turnos.push(x); });
+  ((S.data.extraTurnos || {})[tk] || (S.data.extraTurnos || {})[ym + '|' + sectorId] || []).forEach(x => {
+    if (turnos.some(t => t.key === x.key)) return;
+    const col = (hmap.cols || {})[x.key];
+    const start = (col && col.start) || x.start, end = (col && col.end) || x.end;
+    turnos.push(Object.assign({}, x, { start, end, label: (x.local ? x.local + ' · ' : '') + start + '–' + end }));
+  });
   const gone = (S.data.removedTurnos || {})[tk] || (S.data.removedTurnos || {})[ym + '|' + sectorId] || [];
   turnos = turnos.filter(x => !gone.includes(x.key));
+  turnos.forEach(t => {
+    const col = (hmap.cols || {})[t.key];
+    if (col) { t.start = col.start; t.end = col.end; t.label = (t.local ? t.local + ' · ' : '') + t.start + '–' + t.end; }
+  });
   turnos.sort(escTurnoCmp);
   const cells = {};
   list.forEach(s => {
-    const start = fmtH(s.starts_at), end = fmtH(s.ends_at);
-    const key = start + '-' + end + (s.local || '') + '|' + (+dayKey(s.starts_at).slice(8));
+    const key0 = typeof escShiftTurnoKey === 'function' ? escShiftTurnoKey(s, hmap) : (fmtH(s.starts_at) + '-' + fmtH(s.ends_at) + (s.local || ''));
+    const key = key0 + '|' + (+dayKey(s.starts_at).slice(8));
     const kind = (!s.doctor_id || s.match_conf === 'fora_cadastro') ? 'fora' : (s.match_conf === 'media' ? 'similar' : 'exact');
     (cells[key] = cells[key] || []).push({ doctorId: s.doctor_id || null, shiftId: s.id, raw: s.source_text || docName(s.doctor_id), kind });
   });
-  return { turnos, cells, n: escDays(ym), empty: !list.length };
+  return { turnos, cells, n: escDays(ym), empty: !list.length, sectorId, escalaId: eid };
 }
 async function escWriteGrid(ym, sectorId, grid, escalaId) {
   const items = [];
@@ -2090,7 +2118,8 @@ async function escWriteGrid(ym, sectorId, grid, escalaId) {
     for (let d = 1; d <= grid.n; d++) {
       (grid.cells[t.key + '|' + d] || []).forEach(c => {
         if (!c.doctorId && !(c.raw && String(c.raw).trim())) return;
-        const rng = escRange(ym, d, t.start, t.end);
+        const ef = typeof escTurnoEf === 'function' ? escTurnoEf(t, d, ym, sectorId, escalaId) : t;
+        const rng = escRange(ym, d, ef.start, ef.end);
         items.push({ doctorId: c.doctorId || null, raw: c.raw, kind: c.kind || (c.doctorId ? 'exact' : 'fora'), day: d, turno: t, type: t.type, local: t.local, escala_id: escalaId || S.esc.escalaId || null, ...rng });
       });
     }
@@ -2099,7 +2128,7 @@ async function escWriteGrid(ym, sectorId, grid, escalaId) {
 }
 
 function escDoctorsOfSetor(sectorId) {
-  return (S.data.doctors || []).filter(d => (d.sector_ids || []).includes(sectorId));
+  return (S.data.doctors || []).filter(d => d.active !== false && (d.sector_ids || []).includes(sectorId));
 }
 function escShiftTypeLabel(t) {
   if (t === 'Sobreaviso') return 'sobreaviso';
@@ -2113,16 +2142,18 @@ function escWhereShift(s) {
   const core = `${secName(s.sector_id)}, dia ${day}, ${fmtH(s.starts_at)}–${fmtH(s.ends_at)}${loc}`;
   return `${core} (${tipo === 'visita' ? 'plantão · visita' : tipo})`;
 }
-function escSameSlot(s, sectorId, starts_at, ends_at, local) {
+function escSameSlot(s0, sectorId, starts_at, ends_at, local) {
+  const s = typeof escShiftEffectiveTimes === 'function' ? escShiftEffectiveTimes(s0) : s0;
   return s.sector_id === sectorId && ms(s.starts_at) === ms(starts_at) && ms(s.ends_at) === ms(ends_at) && (s.local || '') === (local || '');
 }
 function escConflictsFor(doctorId, starts_at, ends_at, except) {
   if (!doctorId || !starts_at || !ends_at) return [];
   const a = { starts_at, ends_at };
   const out = [];
-  (S.data.shifts || []).forEach(s => {
+  (S.data.shifts || []).forEach(s0 => {
+    const s = typeof escShiftEffectiveTimes === 'function' ? escShiftEffectiveTimes(s0) : s0;
     if (!s.doctor_id || s.doctor_id !== doctorId || s.status === 'cancelled') return;
-    if (except && except(s)) return;
+    if (except && except(s0)) return;
     if (overlap(a, s)) out.push(s);
   });
   out.sort((x, y) => ms(x.starts_at) - ms(y.starts_at));
@@ -2316,7 +2347,8 @@ function escCellHtml(a, confMsg, ctrR, q) {
   return `<span class="nm${hit ? ' esc-hit' : ''}">${name}</span>${fora}${ch}${typeof ctrMarkHtml === 'function' ? ctrMarkHtml(ctrR) : ''}`;
 }
 function escCellConflictMap(ym, sectorId, day, t, arr) {
-  const rng = escRange(ym, day, t.start, t.end);
+  const ef = typeof escTurnoEf === 'function' ? escTurnoEf(t, day, ym, sectorId, S.esc?.escalaId) : t;
+  const rng = escRange(ym, day, ef.start, ef.end);
   const map = {};
   (arr || []).forEach(c => {
     if (!c.doctorId) return;
@@ -2333,15 +2365,17 @@ function escPrintStatus(st) {
 }
 function escPrintTable(ym, sectorId, g, escalaId) {
   const st = escMonthStatus(ym);
-  const head = `<tr><th>Dia</th>${g.turnos.map(t => `<th>${esc(t.label)}<div class="muted">${esc(t.start)}–${esc(t.end)}${t.local ? ' · ' + esc(t.local) : ''} · ${esc(escTipoLabel(t.type))}</div></th>`).join('')}</tr>`;
+  const head = `<tr><th>Dia</th>${g.turnos.map(t => `<th>${esc(t.local || t.label)}<div class="muted">${esc(t.start)}–${esc(t.end)}${t.local ? ' · ' + esc(t.local) : ''} · ${esc(escTipoLabel(t.type))}</div></th>`).join('')}</tr>`;
   const body = Array.from({ length: g.n }, (_, i) => {
     const d = i + 1;
     const when = ym + '-' + String(d).padStart(2, '0') + 'T12:00:00-03:00';
     const cells = g.turnos.map(t => {
       const arr = g.cells[t.key + '|' + d] || [];
-      if (!arr.length) return '<td></td>';
+      const ef = typeof escTurnoEf === 'function' ? escTurnoEf(t, d, ym, sectorId, escalaId) : t;
+      const hora = ef.dayOver ? `<div class="muted">${esc(ef.start)}–${esc(ef.end)}</div>` : '';
+      if (!arr.length) return hora ? `<td>${hora}</td>` : '<td></td>';
       const names = arr.map(a => a.doctorId ? docName(a.doctorId) : (a.raw || '')).filter(Boolean).join('<br>');
-      return `<td>${names}</td>`;
+      return `<td>${names}${hora}</td>`;
     }).join('');
     return `<tr><th>${d}<span class="wd">${esc(wday(when))}</span></th>${cells}</tr>`;
   }).join('');
@@ -2374,7 +2408,8 @@ function escBuscaTodos(ym, q) {
   const nq = normTxt(q);
   if (!nq) return [];
   const out = [];
-  escShiftsOf(ym, null, null).forEach(s => {
+  escShiftsOf(ym, null, null).forEach(s0 => {
+    const s = typeof escShiftEffectiveTimes === 'function' ? escShiftEffectiveTimes(s0) : s0;
     const name = escShiftName(s);
     if (!escNameMatches(name, nq)) return;
     const day = +dayKey(s.starts_at).slice(8);
@@ -2484,7 +2519,7 @@ function escPageGrid() {
   const clearBtn = hasDocs
     ? `<button class="btn danger" data-act="escLimpar" title="Retira todos os médicos desta escala, neste mês e setor. Os horários ficam.">Limpar escala</button>`
     : `<button class="btn danger" data-act="escLimpar" disabled title="A escala já está vazia">Limpar escala</button>`;
-  const head = `<tr><th class="esc-corner esc-daycol">Dia <button class="btn small" data-act="escAddTurno" title="Acrescentar horário">+</button></th>${g.turnos.map(t => `<th class="esc-hcol" data-tk="${esc(t.key)}"><div class="esc-hlab">${esc(t.label)}</div><div class="muted">${esc(t.start)}–${esc(t.end)}</div><select class="esc-tipo ${escTipoOf(t.type) === 'Sobreaviso' ? 'sob' : 'pla'}" data-act="escTurnoTipo" data-tk="${esc(t.key)}" aria-label="Tipo do horário">${['Plantão', 'Sobreaviso'].map(x => opt(x, x, escTipoOf(t.type))).join('')}</select><button class="btn link small" data-act="escDelTurno" data-tk="${esc(t.key)}">Tirar este horário</button></th>`).join('')}</tr>`;
+  const head = `<tr><th class="esc-corner esc-daycol">Dia <button class="btn small" data-act="escAddTurno" title="Acrescentar horário">+</button></th>${g.turnos.map(t => `<th class="esc-hcol" data-tk="${esc(t.key)}"><div class="esc-hlab">${esc(t.local || t.label)}</div><button type="button" class="esc-hora-btn" data-act="escEditHorario" data-tk="${esc(t.key)}" title="Editar horário deste turno">${esc(t.start)}–${esc(t.end)}</button><select class="esc-tipo ${escTipoOf(t.type) === 'Sobreaviso' ? 'sob' : 'pla'}" data-act="escTurnoTipo" data-tk="${esc(t.key)}" aria-label="Tipo do horário">${['Plantão', 'Sobreaviso'].map(x => opt(x, x, escTipoOf(t.type))).join('')}</select><button class="btn link small" data-act="escDelTurno" data-tk="${esc(t.key)}">Tirar este horário</button></th>`).join('')}</tr>`;
   const body = Array.from({ length: g.n }, (_, i) => {
     const d = i + 1;
     const when = ym + '-' + String(d).padStart(2, '0') + 'T12:00:00-03:00';
@@ -2492,18 +2527,20 @@ function escPageGrid() {
     const we = dow === 0 || dow === 6;
     const cells = g.turnos.map(t => {
       const arr = g.cells[t.key + '|' + d] || [];
-      if (!arr.length) return `<td class="esc-cell empty" data-act="escEditCell" data-tk="${esc(t.key)}" data-day="${d}"><span class="nm">+</span></td>`;
+      const ef = typeof escTurnoEf === 'function' ? escTurnoEf(t, d, ym, sid, eid) : t;
+      const mark = ef.dayOver ? `<span class="esc-hora-mark" title="Horário deste dia: ${esc(ef.start)}–${esc(ef.end)}">${esc(ef.start)}–${esc(ef.end)}</span>` : '';
+      if (!arr.length) return `<td class="esc-cell empty${ef.dayOver ? ' esc-hora-over' : ''}" data-act="escEditCell" data-tk="${esc(t.key)}" data-day="${d}"><span class="nm">+</span>${mark}</td>`;
       const cmap = escCellConflictMap(ym, sid, d, t, arr);
       const hasCh = Object.keys(cmap).length > 0;
       const tip = [...Object.values(cmap).map(x => x.msg), escKindLabel(arr[0].kind)].filter(Boolean).join(' — ');
       const copy = d < g.n ? `<button type="button" class="esc-copy-next" data-act="escCopyNext" data-tk="${esc(t.key)}" data-day="${d}" title="Copiar para o próximo dia">↓</button>` : '';
       const dayIso = ym + '-' + String(d).padStart(2, '0');
       const crs = arr.map(a => (ctrHasData() ? ctrCheck(a.doctorId || null, a.raw || '', sid, dayIso) : null));
-      const hasCtr = crs.some(r => r && r.k !== 'fora' && r.k !== 'incorreta');
+      const hasCtr = crs.some(r => r && r.k !== 'fora' && r.k !== 'incorreta' && r.k !== 'cedido');
       const hasErr = crs.some(r => r && r.k === 'incorreta');
-      const tip2 = [...new Set([tip, ...crs.filter(Boolean).map(r => r.motivo + ': ' + r.detalhe)].filter(Boolean))].join(' — ');
+      const tip2 = [...new Set([tip, ...crs.filter(Boolean).map(r => r.motivo + ': ' + r.detalhe), ef.dayOver ? ('horário deste dia: ' + ef.start + '–' + ef.end) : ''].filter(Boolean))].join(' — ');
       const hits = q ? arr.filter(a => escNameMatches(escAssignName(a), q)).length : 0;
-      return `<td class="esc-cell ${escCellKind(arr)}${hasCh ? ' choque' : ''}${hasCtr ? ' sem-contrato' : ''}${hasErr ? ' info-incorreta' : ''}${hits ? ' esc-hit-cell' : ''}" data-act="escEditCell" data-tk="${esc(t.key)}" data-day="${d}" title="${esc(tip2)}">${arr.map((a, i) => escCellHtml(a, a.doctorId && cmap[a.doctorId] ? cmap[a.doctorId].short : '', crs[i], q)).join('')}${copy}</td>`;
+      return `<td class="esc-cell ${escCellKind(arr)}${hasCh ? ' choque' : ''}${hasCtr ? ' sem-contrato' : ''}${hasErr ? ' info-incorreta' : ''}${hits ? ' esc-hit-cell' : ''}${ef.dayOver ? ' esc-hora-over' : ''}" data-act="escEditCell" data-tk="${esc(t.key)}" data-day="${d}" title="${esc(tip2)}">${arr.map((a, i) => escCellHtml(a, a.doctorId && cmap[a.doctorId] ? cmap[a.doctorId].short : '', crs[i], q)).join('')}${mark}${copy}</td>`;
     }).join('');
     const dayHit = q && cells.includes('esc-hit');
     return `<tr class="${we ? 'we' : ''}${q && !dayHit ? ' esc-day-nomatch' : ''}${dayHit ? ' esc-hit-row' : ''}" data-day="${d}"><th class="esc-day">${d}<span class="wd">${esc(wday(when))}</span></th>${cells}</tr>`;
@@ -2696,9 +2733,10 @@ const EscAct = {
     const t = g.turnos.find(x => x.key === el.dataset.tk);
     const day = +el.dataset.day;
     const arr = g.cells[t.key + '|' + day] || [];
-    const rng = escRange(ym, day, t.start, t.end);
+    const ef = typeof escTurnoEf === 'function' ? escTurnoEf(t, day, ym, sid, eid) : t;
+    const rng = escRange(ym, day, ef.start, ef.end);
     escOpenPicker({
-      title: `${secName(sid)} · dia ${day} · ${t.label}`,
+      title: `${secName(sid)} · dia ${day} · ${ef.start}–${ef.end}`,
       raw: arr[0]?.raw || '',
       doctorId: arr[0]?.doctorId || null,
       shiftId: arr[0]?.shiftId || null,
@@ -2887,10 +2925,12 @@ async function escLimparOk() {
 // (banco: publish_month → status 'published', original preservado). Se já estiver salvo, só confirma.
 async function escSalvar() {
   const ym = escYm();
+  const hadHora = typeof escHorarioPending === 'function' && escHorarioPending();
+  if (typeof escCommitHorarios === 'function') await escCommitHorarios(ym);
   const warns = escWarnings(ym);
   const st = escMonthStatus(ym);
   if (!escSchedules(ym).length) { toast('Não há escala para salvar neste mês.', true); return; }
-  if (st.k === 'published') { toast('Escala salva. Os médicos já veem esta versão.'); return; }
+  if (st.k === 'published' && !hadHora) { toast('Escala salva. Os médicos já veem esta versão.'); return; }
   if (warns.length && !confirm(`A escala de ${fmtMonth(ym)} ainda tem ${warns.length} aviso(s). Salvar mesmo assim?\n\nDepois de salva, os médicos passam a ver esta escala (e ela entra no cruzamento com o ponto).`)) return;
   if (REAL) await rpc('publish_month', { p_month: ym });
   else {
@@ -3152,8 +3192,20 @@ PAGES.habilitacoes = () => {
   const list = sid ? escDoctorsHabilitados(sid) : [];
   const q = S.esc.habQ || '';
   const nq = escNormName(q);
-  const cand = nq ? (S.data.doctors || []).filter(d => !list.some(x => x.id === d.id) && (escNormName(d.name).includes(nq) || String(d.matricula || '').includes(q.replace(/\D/g, '')))).slice(0, 12) : [];
-  return header('Quem pode ser escalado', 'Esta lista é a que aparece ao escolher o médico na grade. Começa com o contrato e com quem já entra na escala; você inclui ou tira alguém quando precisar.', isEscalista() ? '' : '') + `
+  const cand = nq ? (S.data.doctors || []).filter(d => d.active !== false && !list.some(x => x.id === d.id) && (escNormName(d.name).includes(nq) || String(d.matricula || '').includes(q.replace(/\D/g, '')))).slice(0, 12) : [];
+  const addBtn = isEscalista() ? '<button type="button" class="btn primary" data-act="escHabNovoMed" id="escHabNovoMed">Adicionar médico</button>' : '';
+  const row = d => {
+    const ced = typeof escDocCedido === 'function' && escDocCedido(d);
+    const meta = typeof escHabListMeta === 'function' ? escHabListMeta(d) : ('matrícula ' + (d.matricula || '—'));
+    const tagCed = ced ? ' ' + tag('cedido', 'blue', d.vinculo || 'Cedido pela prefeitura') : '';
+    const inat = d.active === false ? ' ' + tag('inativo', 'gray') : '';
+    let acts = `<button type="button" class="btn link small" data-act="escHabDel" data-id="${d.id}">Tirar</button>`;
+    if (typeof escPodeEditarCedido === 'function' && escPodeEditarCedido(d)) {
+      acts = `<span class="esc-hab-actions"><button type="button" class="btn link small" data-act="escHabEditMed" data-id="${d.id}">Editar</button><button type="button" class="btn link small" data-act="escHabDelMed" data-id="${d.id}">Excluir</button>${acts}</span>`;
+    }
+    return `<li><span><b>${esc(d.name)}</b>${tagCed}${inat}<small>${esc(meta)}</small></span>${acts}</li>`;
+  };
+  return header('Quem pode ser escalado', 'Esta lista é a que aparece ao escolher o médico na grade. Começa com o contrato e com quem já entra na escala; você inclui ou tira alguém quando precisar. Médicos cedidos pela prefeitura, que não estão nos contratos, podem ser cadastrados aqui.', addBtn) + `
     <div class="esc-bar">
       <label>Setor <select data-act="escHabSetor">${setores.map(s => opt(s.id, s.name, sid)).join('')}</select></label>
       <span class="muted">${list.length} médico(s) habilitado(s)</span>
@@ -3161,9 +3213,9 @@ PAGES.habilitacoes = () => {
     <div class="esc-hab">
       <div class="esc-hab-add">
         <input type="search" placeholder="Incluir: buscar por nome ou matrícula" data-act="escHabQ" value="${esc(q)}">
-        ${cand.length ? `<div class="lst">${cand.map(d => `<button type="button" data-act="escHabAdd" data-id="${d.id}"><b>${esc(d.name)}</b><small>matrícula ${esc(d.matricula || '—')}</small></button>`).join('')}</div>` : (nq ? '<p class="muted">Nenhum médico fora da lista com esse nome.</p>' : '<p class="muted">Digite um nome para incluir alguém neste setor.</p>')}
+        ${cand.length ? `<div class="lst">${cand.map(d => `<button type="button" data-act="escHabAdd" data-id="${d.id}"><b>${esc(d.name)}</b><small>${esc(typeof escHabListMeta === 'function' ? escHabListMeta(d) : ('matrícula ' + (d.matricula || '—')))}</small></button>`).join('')}</div>` : (nq ? '<p class="muted">Nenhum médico fora da lista com esse nome.</p>' : '<p class="muted">Digite um nome para incluir alguém neste setor, ou use Adicionar médico para cadastrar um cedido da prefeitura.</p>')}
       </div>
-      <ul class="esc-hab-list">${list.map(d => `<li><span><b>${esc(d.name)}</b><small>matrícula ${esc(d.matricula || '—')}</small></span><button type="button" class="btn link small" data-act="escHabDel" data-id="${d.id}">Tirar</button></li>`).join('') || '<li class="muted">Ninguém habilitado neste setor ainda.</li>'}</ul>
+      <ul class="esc-hab-list">${list.map(row).join('') || '<li class="muted">Ninguém habilitado neste setor ainda.</li>'}</ul>
     </div>`;
 };
 
@@ -3219,7 +3271,8 @@ async function escApplyRepeat({ doctorId, mode, ate, overwrite, ym, sectorId, tu
     const arr = g.cells[key] || [];
     const filled = arr.some(c => c.doctorId || (c.raw && String(c.raw).trim()));
     if (filled && !overwrite && d !== day) return;
-    const rng = escRange(ym, d, t.start, t.end);
+    const ef = typeof escTurnoEf === "function" ? escTurnoEf(t, d, ym, sectorId, S.esc.escalaId) : t;
+    const rng = escRange(ym, d, ef.start, ef.end);
     const others = escConflictsFor(doctorId, rng.starts_at, rng.ends_at, s => escSameSlot(s, sectorId, rng.starts_at, rng.ends_at, t.local || ''));
     if (others.length) conflicts.push({ day: d, others });
     changes.push({ day: d, prev: (arr || []).map(c => ({ ...c })), rng });
@@ -3245,6 +3298,7 @@ async function escApplyRepeat({ doctorId, mode, ate, overwrite, ym, sectorId, tu
 async function escUndoRepeat() {
   const u = S.esc.undoRepeat;
   if (!u) { toast('Nada para desfazer.', true); return; }
+  if (u.kind === 'horario' && typeof escUndoHorario === 'function') { return escUndoHorario(u); }
   if (u.kind === 'clear') {
     const items = (u.prevShifts || []).map(s => {
       const day = +dayKey(s.starts_at).slice(8);
@@ -3900,7 +3954,7 @@ const ctrCompact = s => ctrToks(s).join('');
 const ctrSuf = s => { const t = ctrToks(s); return t.some(x => ['JUNIOR', 'JR', 'JUNIO', 'JINIOR'].includes(x)) ? 'JUNIOR' : (t.find(x => CTR_SUF.includes(x)) || ''); };
 const CTR_MOTIVO = {
   incorreta: ['informação incorreta', 'red'], fora: ['fora do cadastro', 'red'], sem: ['sem contrato', 'red'], area: ['contrato de outra área', 'orange'],
-  vencido: ['contrato vencido', 'red'], futuro: ['contrato ainda não vigente', 'orange'], setor: ['setor sem área de contrato', 'gray']
+  vencido: ['contrato vencido', 'red'], futuro: ['contrato ainda não vigente', 'orange'], setor: ['setor sem área de contrato', 'gray'], cedido: ['cedido pela prefeitura', 'blue']
 };
 let CTRX = null;
 function ctrBump() { if (S.data) S.data._ctrVer = (S.data._ctrVer || 0) + 1; CTRX = null; }
@@ -3945,6 +3999,7 @@ function ctrCheck0(docId, raw, sectorId, day) {
   }
   const d = doc(docId);
   if (d && d.matricula === CTR_TESTE_MAT) return null;
+  if (d && typeof escDocCedido === 'function' && escDocCedido(d)) return R('cedido', d.vinculo || 'Cedido pela prefeitura — não entra como sem contrato');
   const L = X.byDoc.get(docId) || [];
   if (!L.length) return R('sem', 'não aparece em nenhum contrato');
   if (!sa.size) return R('setor', 'o setor não está ligado a nenhuma área de contrato (Contratos → Áreas x setores)');
@@ -3963,7 +4018,7 @@ function ctrSemContrato(ym, sectorId) {
   (IDX.shiftsByMonth.get(ym) || []).forEach(s => {
     if (s.status === 'cancelled' || (sectorId && s.sector_id !== sectorId)) return;
     const r = ctrShiftCheck(s);
-    if (!r) return;
+    if (!r || r.k === 'cedido') return;
     const k = s.doctor_id || 'txt:' + ctrCompact(s.source_text);
     let e = by.get(k);
     if (!e) by.set(k, e = { k, doctorId: s.doctor_id || null, nome: s.doctor_id ? docName(s.doctor_id) : (s.source_text || '—'), matricula: s.doctor_id ? (doc(s.doctor_id)?.matricula || '') : '', r, n: 0, setores: new Map(), first: s });
@@ -3976,6 +4031,7 @@ function ctrSemContrato(ym, sectorId) {
 function ctrMarkHtml(r) {
   if (!r || r.k === 'fora') return '';
   if (r.k === 'incorreta') return `<span class="ctr-mark erro" title="${esc(r.motivo + ': ' + r.detalhe)}">⛔ informação incorreta</span>`;
+  if (r.k === 'cedido') return `<span class="ctr-mark cedido" title="${esc(r.motivo + ': ' + r.detalhe)}">cedido</span>`;
   const short = { sem: 'sem contrato', area: 'contrato de outra área', vencido: 'contrato vencido', futuro: 'contrato não vigente', setor: 'setor sem contrato' }[r.k];
   return `<span class="ctr-mark ${r.color}" title="${esc(r.motivo + ': ' + r.detalhe)}">⚠ ${esc(short)}</span>`;
 }
@@ -5717,6 +5773,350 @@ async function evSave(id, staffId, iguais) {
   S.ponto.cache = null;
   render();
 }
+// ── v4.13 · médicos cedidos pela prefeitura e horários editáveis na grade ──
+
+const ESC_VINCULO_CEDIDO = 'Cedido pela prefeitura';
+function escDocCedido(d) {
+  if (!d) return false;
+  const v = String(d.vinculo || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return /cedido/.test(v);
+}
+function escPodeEditarCedido(d) {
+  return !!(d && !d.cadastro_fms && (escDocCedido(d) || d.origem === 'cadastro'));
+}
+function escNomeParecidos(nome, exceptId) {
+  const n = escNormName(nome);
+  if (!n) return [];
+  return (S.data.doctors || []).filter(d => {
+    if (exceptId && d.id === exceptId) return false;
+    if (!d.name) return false;
+    if (!escGenOk(nome, d.name)) return false;
+    const dn = escNormName(d.name);
+    return dn === n || escDice(n, dn) >= 0.8;
+  });
+}
+
+function escHabOpenMed(id) {
+  if (!isEscalista()) { toast('Só a coordenação cadastra médicos cedidos.', true); return; }
+  const d = id ? doc(id) : null;
+  if (id && !escPodeEditarCedido(d)) { toast('Este cadastro não pode ser editado por aqui (vem do FMS ou dos contratos).', true); return; }
+  const secs = new Set(d?.sector_ids || (S.esc.habSectorId ? [S.esc.habSectorId] : []));
+  const setores = escSetores().filter(s => s.name !== 'TESTE').slice().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  modal(d ? 'Editar médico' : 'Adicionar médico', `<form id="cedidoForm">
+    <p class="hint">Para médicos cedidos pela prefeitura que não aparecem nos contratos. Não pedimos CPF, telefone ou e-mail pessoal. O CRM, se informado, fica só no cadastro — não aparece no cabeçalho da escala.</p>
+    <input type="hidden" name="id" value="${esc(d?.id || '')}">
+    <div class="form-grid">
+      <div class="field span2"><label>Nome completo *</label><input name="name" required minlength="3" maxlength="160" value="${esc(d?.name || '')}"></div>
+      <div class="field"><label>CRM (opcional)</label><input name="crm" maxlength="20" value="${esc(d?.crm || '')}" placeholder="Não aparece na escala"></div>
+      <div class="field"><label>Especialidade</label><input name="specialty" maxlength="80" value="${esc(d?.specialty || '')}"></div>
+      <div class="field span2"><label>Vínculo</label><input name="vinculo" maxlength="80" value="${esc(d?.vinculo || ESC_VINCULO_CEDIDO)}"></div>
+      <div class="field span2"><label>Setores / habilitações</label><div class="checks">${setores.map(s => `<label><input type="checkbox" name="sector" value="${s.id}" ${secs.has(s.id) ? 'checked' : ''}> ${esc(s.name)}</label>`).join('')}</div></div>
+      <div class="field span2"><label>Observação</label><textarea name="observacao" rows="2" maxlength="500">${esc(d?.observacao || '')}</textarea></div>
+    </div>
+    <div class="form-actions"><button type="button" class="btn" data-act="closeModal">Cancelar</button><button class="btn primary">Salvar</button></div>
+  </form>`, { wide: true });
+}
+
+async function escHabSaveMed(f) {
+  const name = String(f.name || '').trim();
+  if (name.length < 3) throw new Error('Informe o nome completo.');
+  if (/cpf|telefone|celular|e-?mail/i.test(JSON.stringify(f))) throw new Error('Não cadastre CPF, telefone ou e-mail pessoal.');
+  const v = {
+    name,
+    crm: String(f.crm || '').trim() || null,
+    specialty: String(f.specialty || '').trim() || null,
+    vinculo: String(f.vinculo || '').trim() || ESC_VINCULO_CEDIDO,
+    observacao: String(f.observacao || '').trim() || null,
+    active: true
+  };
+  const sectors = f.sectors || [];
+  const parecidos = escNomeParecidos(v.name, f.id || null);
+  if (parecidos.length) {
+    const lista = parecidos.slice(0, 6).map(d => d.name + (escDocCedido(d) ? ' (cedido)' : '')).join('\n');
+    if (!confirm(`Já existe médico com nome parecido:\n\n${lista}${parecidos.length > 6 ? '\n…' : ''}\n\nNomes com Junior, Jr, Filho, Neto ou Sobrinho são outra pessoa e não foram listados.\n\nCadastrar mesmo assim?`)) return;
+  }
+  if (REAL) {
+    let id = f.id || null;
+    const payload = { ...v, origem: 'cadastro' };
+    if (id) {
+      if (!escPodeEditarCedido(doc(id))) throw new Error('Este cadastro não pode ser editado por aqui.');
+      const { error } = await S.sb.from('doctors').update(payload).eq('id', id);
+      if (error) throw new Error(error.message);
+    } else {
+      const r = await S.sb.from('doctors').insert(payload).select('id').single();
+      if (r.error) throw new Error(r.error.message);
+      id = r.data.id;
+    }
+    const cur = doc(id)?.sector_ids || [];
+    const add = sectors.filter(s => !cur.includes(s)), del = cur.filter(s => !sectors.includes(s));
+    if (add.length) { const { error } = await S.sb.from('doctor_sectors').insert(add.map(s => ({ doctor_id: id, sector_id: s }))); if (error) throw new Error(error.message); }
+    if (del.length) { const { error } = await S.sb.from('doctor_sectors').delete().eq('doctor_id', id).in('sector_id', del); if (error) throw new Error(error.message); }
+    await done('Médico salvo.');
+    return;
+  }
+  let d = f.id && doc(f.id);
+  if (d && !escPodeEditarCedido(d)) throw new Error('Este cadastro não pode ser editado por aqui.');
+  if (!d) {
+    d = { id: rid('med'), origem: 'cadastro', cadastro_fms: false, matricula: null, empresa: null, sector_ids: [], active: true };
+    S.data.doctors.push(d);
+  }
+  Object.assign(d, v, { sector_ids: sectors, origem: d.origem || 'cadastro' });
+  audit('DOCTOR_SAVED', `Médico cedido salvo: ${d.name} · vínculo: ${d.vinculo}`);
+  await done('Médico salvo.');
+}
+
+async function escHabDelMed(id) {
+  const d = doc(id);
+  if (!escPodeEditarCedido(d)) { toast('Só é possível excluir médicos adicionados manualmente (cedidos).', true); return; }
+  const used = (S.data.shifts || []).some(s => s.doctor_id === id && s.status !== 'cancelled');
+  if (used) {
+    if (!confirm(`${d.name} já tem plantão na escala. Inativar o cadastro? Os plantões já lançados permanecem, e o nome continua no cruzamento.`)) return;
+    d.active = false;
+    if (REAL) {
+      const { error } = await S.sb.from('doctors').update({ active: false }).eq('id', id);
+      if (error) throw new Error(error.message);
+    }
+    audit('DOCTOR_SAVED', `Médico cedido inativado: ${d.name}`);
+    await done('Cadastro inativado.');
+    return;
+  }
+  if (!confirm(`Excluir ${d.name} do cadastro?`)) return;
+  if (REAL) {
+    if (S.sb) {
+      await S.sb.from('doctor_sectors').delete().eq('doctor_id', id);
+      const { error } = await S.sb.from('doctors').delete().eq('id', id);
+      if (error) throw new Error(error.message);
+    }
+    await done('Médico excluído.');
+    return;
+  }
+  S.data.doctors = S.data.doctors.filter(x => x.id !== id);
+  audit('DOCTOR_SAVED', `Médico cedido excluído: ${d.name}`);
+  await done('Médico excluído.');
+}
+
+// ── horários editáveis ──
+function escValidHm(s) { return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(s || '').trim()); }
+function escNormHm(s) {
+  const t = String(s || '').trim();
+  const m = t.match(/^(\d{1,2}):(\d{1,2})(?::\d{1,2})?$/) || t.match(/^(\d{1,2})$/);
+  if (!m) return '';
+  const h = Math.min(23, +m[1]), min = Math.min(59, +(m[2] || 0));
+  return String(h).padStart(2, '0') + ':' + String(min).padStart(2, '0');
+}
+function escKeyParts(key) {
+  const m = String(key || '').match(/^(\d{2}:\d{2})-(\d{2}:\d{2})(.*)$/);
+  return m ? { start: m[1], end: m[2], local: m[3] || '' } : null;
+}
+function escHorarioEmpty() { return { cols: {}, days: {} }; }
+function escHorarioMap(ym, sid, eid) {
+  const k = escTurnoStoreKey(ym, sid, eid);
+  const saved = (S.data.horarioEdits || {})[k] || escHorarioEmpty();
+  const draft = (S.esc && S.esc.horarioDraft && S.esc.horarioDraft[k]) || escHorarioEmpty();
+  return { cols: Object.assign({}, saved.cols, draft.cols), days: Object.assign({}, saved.days, draft.days) };
+}
+function escHorarioPending(ym, sid, eid) {
+  if (!S.esc || !S.esc.horarioDraft) return false;
+  if (ym && sid) {
+    const d = S.esc.horarioDraft[escTurnoStoreKey(ym, sid, eid)];
+    return !!(d && (Object.keys(d.cols || {}).length || Object.keys(d.days || {}).length));
+  }
+  return Object.keys(S.esc.horarioDraft).some(k => {
+    const d = S.esc.horarioDraft[k];
+    return d && (Object.keys(d.cols || {}).length || Object.keys(d.days || {}).length);
+  });
+}
+function escTurnoEf(t, day, ym, sid, eid) {
+  const m = escHorarioMap(ym, sid, eid);
+  const d = m.days[t.key + '|' + day];
+  const c = m.cols[t.key];
+  const start = (d || c || t).start;
+  const end = (d || c || t).end;
+  return { start, end, dayOver: !!d, colOver: !!(c && (c.start !== (escKeyParts(t.key)?.start || t.start) || c.end !== (escKeyParts(t.key)?.end || t.end))) };
+}
+function escShiftTurnoKey(s, hmap) {
+  const start = fmtH(s.starts_at), end = fmtH(s.ends_at);
+  const day = +dayKey(s.starts_at).slice(8);
+  const local = s.local || '';
+  const natural = start + '-' + end + local;
+  const h = hmap || escHorarioMap(s._month || monthOf(s.starts_at), s.sector_id, s.escala_id);
+  for (const [k, v] of Object.entries(h.days || {})) {
+    const i = k.lastIndexOf('|');
+    if (i < 0) continue;
+    const tk = k.slice(0, i), d = +k.slice(i + 1);
+    if (d === day && v.start === start && v.end === end && (!local || tk.endsWith(local))) return tk;
+  }
+  for (const [tk, v] of Object.entries(h.cols || {})) {
+    if (v.start === start && v.end === end && (!local || tk.endsWith(local))) return tk;
+  }
+  return natural;
+}
+function escShiftEffectiveTimes(s) {
+  if (!s || !s.starts_at) return s;
+  const ym = s._month || monthOf(s.starts_at);
+  const day = +dayKey(s.starts_at).slice(8);
+  const hmap = escHorarioMap(ym, s.sector_id, s.escala_id);
+  const start0 = fmtH(s.starts_at), end0 = fmtH(s.ends_at);
+  const key = escShiftTurnoKey(s, hmap);
+  const dayEd = hmap.days[key + '|' + day];
+  const colEd = hmap.cols[key];
+  const start = (dayEd || colEd || { start: start0 }).start;
+  const end = (dayEd || colEd || { end: end0 }).end;
+  if (start === start0 && end === end0) return s;
+  const rng = escRange(ym, day, start, end);
+  return Object.assign({}, s, { starts_at: rng.starts_at, ends_at: rng.ends_at });
+}
+
+function escHabListMeta(d) {
+  const bits = [];
+  if (d.matricula) bits.push('matrícula ' + d.matricula);
+  else bits.push('sem matrícula');
+  if (d.specialty) bits.push(d.specialty);
+  if (escDocCedido(d)) bits.push(d.vinculo || ESC_VINCULO_CEDIDO);
+  return bits.join(' · ');
+}
+
+function escEditHorarioOpen(tk, dayHint) {
+  if (!isEscalista()) { toast('Só quem monta a escala edita o horário.', true); return; }
+  const ym = escYm(), sid = S.esc.sectorId, eid = escEnsureEscala(sid);
+  const g = escGrid(ym, sid, eid);
+  const t = g.turnos.find(x => x.key === tk);
+  if (!t) return;
+  const ef = escTurnoEf(t, dayHint || 1, ym, sid, eid);
+  const n = g.n;
+  const day0 = dayHint && dayHint >= 1 && dayHint <= n ? dayHint : 1;
+  modal('Editar horário', `<form id="escHorarioForm">
+    <input type="hidden" name="tk" value="${esc(tk)}">
+    <p class="hint">${esc(secName(sid))}${eid && escEscalaName(eid) ? ' · ' + esc(escEscalaName(eid)) : ''} · ${esc(fmtMonth(ym))}. Aceita plantão que atravessa a meia-noite (ex.: 19:00–07:00). A alteração só é gravada ao tocar em Salvar.</p>
+    <div class="form-grid">
+      <div class="field"><label>Início</label><input name="inicio" type="time" required value="${esc(ef.start)}"></div>
+      <div class="field"><label>Fim</label><input name="fim" type="time" required value="${esc(ef.end)}"></div>
+      <div class="field span2 esc-hora-scope">
+        <div class="esc-rep-lab">Aplicar em:</div>
+        <label><input type="radio" name="escHoraScope" value="mes" checked> Todo o mês deste setor</label>
+        <label><input type="radio" name="escHoraScope" value="dia"> Só um dia
+          <input type="number" name="dia" id="escHoraDia" min="1" max="${n}" value="${day0}" aria-label="Dia do mês">
+        </label>
+      </div>
+    </div>
+    <div class="form-actions"><button type="button" class="btn" data-act="closeModal">Cancelar</button><button class="btn primary">Aplicar</button></div>
+  </form>`);
+}
+
+function escApplyHorario(f) {
+  const start = escNormHm(f.inicio), end = escNormHm(f.fim);
+  if (!escValidHm(start) || !escValidHm(end)) throw new Error('Informe o início e o fim no formato HH:MM.');
+  const ym = escYm(), sid = S.esc.sectorId, eid = escEnsureEscala(sid);
+  const g = escGrid(ym, sid, eid);
+  const t = g.turnos.find(x => x.key === f.tk);
+  if (!t) throw new Error('Horário não encontrado nesta escala.');
+  const scope = f.escHoraScope || 'mes';
+  const day = Math.max(1, Math.min(g.n, +f.dia || 1));
+  const k = escTurnoStoreKey(ym, sid, eid);
+  S.esc.horarioDraft = S.esc.horarioDraft || {};
+  const prev = JSON.parse(JSON.stringify(S.esc.horarioDraft[k] || escHorarioEmpty()));
+  const savedPrev = JSON.parse(JSON.stringify((S.data.horarioEdits || {})[k] || escHorarioEmpty()));
+  const cur = S.esc.horarioDraft[k] || (S.esc.horarioDraft[k] = escHorarioEmpty());
+  if (scope === 'dia') {
+    cur.days = cur.days || {};
+    cur.days[t.key + '|' + day] = { start, end };
+  } else {
+    cur.cols = cur.cols || {};
+    cur.cols[t.key] = { start, end };
+  }
+  S.esc.undoRepeat = { kind: 'horario', ym, sectorId: sid, escalaId: eid, prevDraft: prev, prevSaved: savedPrev };
+  closeModal();
+  S.ponto.cache = null;
+  if (S.data) S.data._ver = (S.data._ver || 0) + 1;
+  toast(scope === 'dia'
+    ? `Horário do dia ${day} alterado para ${start}–${end}. Toque em Salvar para gravar, ou em Desfazer para voltar.`
+    : `Horário da coluna alterado para ${start}–${end} em todo o mês. Toque em Salvar para gravar, ou em Desfazer para voltar.`);
+  render();
+}
+
+function escUndoHorario(u) {
+  const k = escTurnoStoreKey(u.ym, u.sectorId, u.escalaId);
+  S.esc.horarioDraft = S.esc.horarioDraft || {};
+  S.esc.horarioDraft[k] = u.prevDraft || escHorarioEmpty();
+  if (u.prevSaved) {
+    S.data.horarioEdits = S.data.horarioEdits || {};
+    S.data.horarioEdits[k] = u.prevSaved;
+  }
+  S.esc.undoRepeat = null;
+  toast('Alteração de horário desfeita.');
+  render();
+}
+
+async function escCommitHorarios(ym) {
+  const pendingKeys = Object.keys((S.esc && S.esc.horarioDraft) || {});
+  if (!pendingKeys.length && !((S.data.horarioEdits) && Object.keys(S.data.horarioEdits).length)) return false;
+  const had = escHorarioPending();
+  const setores = [...new Set((S.data.schedules || []).filter(s => s.month_ref === ym).map(s => s.sector_id))];
+  for (const sid of setores) {
+    const escalas = escEscalasOf(sid);
+    const ids = escalas.length ? escalas.map(e => e.id) : [escEnsureEscala(sid)];
+    for (const eid of ids) {
+      const k = escTurnoStoreKey(ym, sid, eid);
+      if (!escHorarioPending(ym, sid, eid) && !((S.data.horarioEdits || {})[k])) continue;
+      const g = escGrid(ym, sid, eid);
+      // reescreve as células com os horários efetivos (escWriteGrid usa escTurnoEf via patch em escRange calls)
+      await escWriteGrid(ym, sid, g, eid);
+      await escPersistHorarios(ym, sid, eid);
+    }
+  }
+  S.esc.horarioDraft = {};
+  return had;
+}
+
+async function escPersistHorarios(ym, sid, eid) {
+  const k = escTurnoStoreKey(ym, sid, eid);
+  const draft = (S.esc.horarioDraft && S.esc.horarioDraft[k]) || escHorarioEmpty();
+  S.data.horarioEdits = S.data.horarioEdits || {};
+  const cur = S.data.horarioEdits[k] || escHorarioEmpty();
+  S.data.horarioEdits[k] = { cols: Object.assign({}, cur.cols, draft.cols), days: Object.assign({}, cur.days, draft.days) };
+  if (!REAL) { demoSave(); return; }
+  if (!S.sb) return;
+  const rows = [];
+  Object.entries(S.data.horarioEdits[k].cols || {}).forEach(([tk, v]) => {
+    rows.push({ month_ref: ym, sector_id: sid, escala_id: eid || null, turno_key: tk, day: null, start_hm: v.start, end_hm: v.end });
+  });
+  Object.entries(S.data.horarioEdits[k].days || {}).forEach(([dk, v]) => {
+    const i = dk.lastIndexOf('|');
+    rows.push({ month_ref: ym, sector_id: sid, escala_id: eid || null, turno_key: dk.slice(0, i), day: +dk.slice(i + 1), start_hm: v.start, end_hm: v.end });
+  });
+  let q = S.sb.from('escala_horarios').delete().eq('month_ref', ym).eq('sector_id', sid);
+  q = eid ? q.eq('escala_id', eid) : q.is('escala_id', null);
+  const { error: e1 } = await q;
+  if (e1) throw new Error(e1.message);
+  if (rows.length) {
+    const { error } = await S.sb.from('escala_horarios').insert(rows);
+    if (error) throw new Error(error.message);
+  }
+}
+
+async function escLoadHorariosReal() {
+  if (!REAL || !S.sb || !isEscalista()) return;
+  try {
+    const rows = await fetchAll('escala_horarios');
+    const map = {};
+    (rows || []).forEach(r => {
+      const k = escTurnoStoreKey(r.month_ref, r.sector_id, r.escala_id);
+      map[k] = map[k] || escHorarioEmpty();
+      if (r.day == null) map[k].cols[r.turno_key] = { start: r.start_hm, end: r.end_hm };
+      else map[k].days[r.turno_key + '|' + r.day] = { start: r.start_hm, end: r.end_hm };
+    });
+    S.data.horarioEdits = map;
+  } catch (e) { console.warn('escala_horarios indisponível:', e.message); }
+}
+
+if (typeof EscAct !== 'undefined') {
+  Object.assign(EscAct, {
+    escHabNovoMed: () => escHabOpenMed(null),
+    escHabEditMed: el => escHabOpenMed(el.dataset.id),
+    escHabDelMed: el => escHabDelMed(el.dataset.id),
+    escEditHorario: el => escEditHorarioOpen(el.dataset.tk, el.dataset.day ? +el.dataset.day : undefined)
+  });
+}
 // ───────── eventos ─────────
 async function loginRun(fn) { S.login.error = null; try { await fn(); } catch (e) { console.warn(e); S.login.error = e.message || 'Falha na operação'; renderLogin(); } }
 async function run(fn) { try { await fn(); } catch (e) { console.warn(e); toast(e.message || 'Falha na operação', true); } }
@@ -5820,6 +6220,8 @@ document.addEventListener('submit', e => {
   if (fid === 'evForm') return run(() => evSave(o.id, o.staff_id, o.iguais === 'on'));
   if (fid === 'inviteForm') return run(() => A.createInvite(o.doctor_id, o.email));
   if (fid === 'doctorForm') return run(() => A.saveDoctor(o));
+  if (fid === 'cedidoForm') return run(() => escHabSaveMed(o));
+  if (fid === 'escHorarioForm') return run(() => escApplyHorario(o));
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); if (e.key === 'Enter' && e.target.classList?.contains('kpi')) e.target.click(); });
 $('#menuBtn').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
@@ -5828,6 +6230,6 @@ window.addEventListener('hashchange', () => {
   if (rt) { S.me = null; S.login = { step: 'nova_senha', token: rt[1] }; demoSave(); return route(); }
   if (!S.me && inviteToken()) renderLogin();
 });
-window.EscalaMed = { S, A, version: '4.12', Assistente: typeof Assistente !== 'undefined' ? Assistente : null };
+window.EscalaMed = { S, A, version: '4.13', Assistente: typeof Assistente !== 'undefined' ? Assistente : null };
 boot();
 })();
