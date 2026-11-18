@@ -902,18 +902,87 @@ function masterTrocas() {
 function tabs(key, list) { const cur = S.tabs[key] || list[0][0]; return `<div class="tabs">${list.map(([k, l, n]) => `<button class="${cur === k ? 'on' : ''}" data-act="tab" data-key="${key}" data-v="${k}">${esc(l)}${n !== undefined ? ` <b>${n}</b>` : ''}</button>`).join('')}</div>`; }
 
 // ───────── MASTER: WhatsApp ─────────
+const WA_TAB_LABEL = { todas: 'Todas', importada: 'Prontas para aplicar', a_revisar: 'A revisar', aplicada: 'Aplicadas', descartada: 'Descartadas' };
+const WA_PRINT_ST = { importada: 'Pronta para aplicar', a_revisar: 'A revisar', aplicada: 'Aplicada', descartada: 'Descartada' };
+const waWhen = w => w.starts_at || w.data_plantao;
+function waSafeText(s) {
+  return String(s || '')
+    .replace(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/g, '…')
+    .replace(/(?:\+?\s*55\s*)?(?:\(?\d{2}\)?\s*)?\d{4,5}[-\s.]?\d{4}/g, '…')
+    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/gi, '…');
+}
+function waMonthsAvail() {
+  return [...new Set((S.data.whatsapp || []).map(w => monthOf(waWhen(w))).filter(Boolean))].sort();
+}
+function waFiltered(status, mes) {
+  const t = status === undefined ? (S.tabs.wa || 'todas') : status;
+  const m = mes === undefined ? (S.f.waMes || '') : mes;
+  return (S.data.whatsapp || []).filter(w => (t === 'todas' || w.status === t) && (!m || monthOf(waWhen(w)) === m))
+    .sort((a, b) => (validMs(waWhen(a)) || 0) - (validMs(waWhen(b)) || 0));
+}
+function waPerson(w, side) {
+  const id = w[side + '_doctor_id'];
+  if (id) return docName(id);
+  return waSafeText(w[side + '_texto']) || 'não identificado';
+}
+function waPlantaoData(w) {
+  if (w.starts_at) return fmtD(w.starts_at);
+  if (w.data_plantao) return String(w.data_plantao).split('-').reverse().join('/');
+  return '—';
+}
+function trocasReportHtml() {
+  const t = S.tabs.wa || 'todas';
+  const mes = S.f.waMes || '';
+  const list = waFiltered();
+  const gerado = new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date());
+  const rows = list.map(w => `<tr>
+      <td>${esc(waPlantaoData(w))}${w.horario ? `<div class="muted">${esc(waSafeText(w.horario))}</div>` : ''}</td>
+      <td>${esc(waSafeText(w.setor_texto || '—'))}${w.especialidade ? `<div class="muted">${esc(waSafeText(w.especialidade))}</div>` : ''}</td>
+      <td>${esc(waPerson(w, 'sai'))}</td>
+      <td>${esc(waPerson(w, 'entra'))}</td>
+      <td>${esc(WA_PRINT_ST[w.status] || w.status || '—')}</td>
+      <td>${esc(waSafeText(w.observacao || '—'))}</td>
+    </tr>`).join('') || '<tr><td colspan="6">Nenhuma troca neste filtro.</td></tr>';
+  return `<div class="ponto-print-head">
+    <p class="ponto-print-hosp">Hospital Municipal Padre Germano Lauck (HMPGL) · Foz do Iguaçu</p>
+    <h1>Relatório de trocas de plantão — HMPGL</h1>
+    <p>Período: ${esc(mes ? fmtMonth(mes) : 'todos os meses')} · Aba: ${esc(WA_TAB_LABEL[t] || t)}</p>
+    <p>Gerado em ${esc(gerado)} (horário de Brasília)</p>
+  </div>
+  <p class="ponto-print-kpis"><b>Total de trocas:</b> ${list.length}</p>
+  <table class="trocas-print-tbl">
+    <thead><tr><th>Plantão</th><th>Setor</th><th>Sai</th><th>Entra</th><th>Status</th><th>Observação</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+function printTrocasReport() {
+  let el = document.getElementById('trocasPrint');
+  if (!el) { el = document.createElement('div'); el.id = 'trocasPrint'; el.className = 'ponto-print trocas-print'; document.body.appendChild(el); }
+  el.innerHTML = trocasReportHtml();
+  let style = document.getElementById('trocasPrintPage');
+  if (!style) { style = document.createElement('style'); style.id = 'trocasPrintPage'; document.head.appendChild(style); }
+  style.textContent = '@page{size:A4 landscape;margin:10mm 8mm}';
+  document.body.classList.add('printing-ponto', 'printing-trocas');
+  const done = () => { document.body.classList.remove('printing-ponto', 'printing-trocas'); style.textContent = ''; };
+  window.addEventListener('afterprint', done, { once: true });
+  setTimeout(() => window.print(), 50);
+}
 PAGES.whatsapp = () => {
-  const W = S.data.whatsapp, t = S.tabs.wa || 'todas';
-  const waWhen = w => w.starts_at || w.data_plantao;
-  const list = W.filter(w => t === 'todas' || w.status === t).sort((a, b) => (validMs(waWhen(a)) || 0) - (validMs(waWhen(b)) || 0));
+  const W = S.data.whatsapp || [], t = S.tabs.wa || 'todas';
+  const mes = S.f.waMes || '';
+  const monthsAvail = waMonthsAvail();
+  const base = mes ? W.filter(w => monthOf(waWhen(w)) === mes) : W;
+  const list = waFiltered();
   const cf = c => c ? tag(CONF[c]?.[0] || c, CONF[c]?.[1] || 'gray') : '';
-  return header('Trocas do WhatsApp', 'Histórico importado do grupo (somente leitura). Cada mensagem pode ser aplicada à escala vigente quando a escala daquele mês estiver carregada; a original não muda.') +
-    tabs('wa', [['todas', 'Todas', W.length], ['importada', 'Prontas para aplicar', W.filter(w => w.status === 'importada').length], ['a_revisar', 'A revisar', W.filter(w => w.status === 'a_revisar').length], ['aplicada', 'Aplicadas', W.filter(w => w.status === 'aplicada').length], ['descartada', 'Descartadas', W.filter(w => w.status === 'descartada').length]]) +
-    `<div class="table-wrap"><table class="tbl"><thead><tr><th>Plantão</th><th>Setor (mensagem)</th><th>Sai</th><th>Entra</th><th>Status</th><th></th></tr></thead><tbody>${list.map(w => `<tr><td>${w.starts_at ? fmtD(w.starts_at) : (w.data_plantao ? w.data_plantao.split('-').reverse().join('/') : '—')}<div class="muted small">${esc(w.horario || '')}</div></td><td>${esc(w.setor_texto || '')}<div class="muted small">${esc(w.especialidade || '')}</div></td>
+  const actions = `<label class="wa-mes-lab">Mês <select data-f="waMes" aria-label="Mês do relatório">${opt('', 'Todos os meses', mes)}${monthsAvail.map(m => opt(m, fmtMonth(m), mes)).join('')}</select></label>
+      <button class="btn" data-act="printTrocas">Imprimir relatório</button>`;
+  return header('Trocas do WhatsApp', 'Histórico importado do grupo (somente leitura). Cada mensagem pode ser aplicada à escala vigente quando a escala daquele mês estiver carregada; a original não muda.', actions) +
+    tabs('wa', [['todas', 'Todas', base.length], ['importada', 'Prontas para aplicar', base.filter(w => w.status === 'importada').length], ['a_revisar', 'A revisar', base.filter(w => w.status === 'a_revisar').length], ['aplicada', 'Aplicadas', base.filter(w => w.status === 'aplicada').length], ['descartada', 'Descartadas', base.filter(w => w.status === 'descartada').length]]) +
+    `<div class="table-wrap"><table class="tbl"><thead><tr><th>Plantão</th><th>Setor (mensagem)</th><th>Sai</th><th>Entra</th><th>Status</th><th></th></tr></thead><tbody>${list.map(w => `<tr><td>${esc(waPlantaoData(w))}<div class="muted small">${esc(w.horario || '')}</div></td><td>${esc(w.setor_texto || '')}<div class="muted small">${esc(w.especialidade || '')}</div></td>
      <td>${esc(w.sai_texto)}<div class="small">${w.sai_doctor_id ? '→ ' + esc(docName(w.sai_doctor_id)) + ' ' + cf(w.match_sai || 'alta') : tag('não identificado', 'red')}</div></td><td>${esc(w.entra_texto)}<div class="small">${w.entra_doctor_id ? '→ ' + esc(docName(w.entra_doctor_id)) + ' ' + cf(w.match_entra || 'alta') : tag('não identificado', 'red')}</div></td>
      <td>${tag(...({ importada: ['Pronta', 'blue'], a_revisar: ['A revisar', 'orange'], aplicada: ['Aplicada', 'green'], descartada: ['Descartada', 'gray'] }[w.status] || [w.status || '—', 'gray']))}${w.observacao ? `<div class="muted small">${esc(w.observacao)}</div>` : ''}</td>
      <td class="nowrap">${['importada', 'a_revisar'].includes(w.status) ? `<button class="btn small" data-act="waFix" data-id="${w.id}">Revisar</button> <button class="btn small primary" data-act="waApply" data-id="${w.id}" ${w.sai_doctor_id && w.entra_doctor_id ? '' : 'disabled'}>Aplicar</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nada aqui.</td></tr>'}</tbody></table></div>
-    <p class="muted small">As mensagens importadas são de ${[...new Set(W.map(w => monthOf(w.starts_at || w.data_plantao)).filter(Boolean))].map(fmtMonth).join(', ') || '—'}. Aplicar procura o plantão do médico que sai, no mesmo dia e horário, na escala carregada.</p>`;
+    <p class="muted small">As mensagens importadas são de ${monthsAvail.map(fmtMonth).join(', ') || '—'}${mes ? ` · filtro: ${fmtMonth(mes)}` : ''}. Aplicar procura o plantão do médico que sai, no mesmo dia e horário, na escala carregada.</p>`;
 };
 function waFix(id) {
   const w = S.data.whatsapp.find(x => String(x.id) === String(id)), ds = S.data.doctors.slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -6155,7 +6224,7 @@ document.addEventListener('click', e => {
     copyInvite: () => { const u = inviteUrl(el.dataset.token); (navigator.clipboard?.writeText(u) || Promise.reject()).then(() => toast('Link copiado.'), () => { const i = $('#invLink') || el.previousElementSibling; i?.select?.(); toast('Selecione e copie o link.'); }); },
     revokeInvite: () => run(() => A.revokeInvite(id)), editDoctor: () => editDoctor(id),
     exportPonto: () => run(exportPonto),
-    printPonto: () => run(printPontoReport), exportVersao: () => run(() => exportVersao(el.dataset.v)), exportEscala: () => run(() => exportVersao(S.f.version)),
+    printPonto: () => run(printPontoReport), printTrocas: () => run(printTrocasReport), exportVersao: () => run(() => exportVersao(el.dataset.v)), exportEscala: () => run(() => exportVersao(S.f.version)),
     wSubmit: () => run(wizSubmit),
     toggleExtras: () => { S.ponto.showExtras = !S.ponto.showExtras; render(); }, markRead: () => run(A.markRead),
     logout: () => run(async () => { if (REAL) { S.w = null; await S.sb.auth.signOut(); } else { S.me = null; S.page = null; S.w = null; S.f.month = null; demoSave(); S.login = { step: 1, matricula: '', found: null, mode: 'medico' }; route(); } }),
@@ -6244,6 +6313,6 @@ window.addEventListener('hashchange', () => {
   if (rt) { S.me = null; S.login = { step: 'nova_senha', token: rt[1] }; demoSave(); return route(); }
   if (!S.me && inviteToken()) renderLogin();
 });
-window.EscalaMed = { S, A, version: '4.14', Assistente: typeof Assistente !== 'undefined' ? Assistente : null };
+window.EscalaMed = { S, A, version: '4.15', trocasReportHtml, printTrocasReport, Assistente: typeof Assistente !== 'undefined' ? Assistente : null };
 boot();
 })();

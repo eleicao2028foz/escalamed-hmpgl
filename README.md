@@ -1,6 +1,6 @@
 # EscalaMed · HMPGL
 
-Cópia estática do EscalaMed (v4.13) no GitHub Pages, para acesso na rede da prefeitura (onde `netlify.app` fica bloqueado).
+Cópia estática do EscalaMed (v4.15) no GitHub Pages, para acesso na rede da prefeitura (onde `netlify.app` fica bloqueado).
 
 - Site: https://eleicao2028foz.github.io/escalamed-hmpgl/
 - O site em https://escalamed-hmpgl.netlify.app continua no ar e não foi alterado.

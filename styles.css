@@ -418,3 +418,25 @@ td.esc-hora-over{box-shadow:inset 0 -2px 0 #3a7ebd}
 .esc-hora-scope input[type=number]{width:4.5rem;margin-left:6px}
 .esc-hab-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 span.ctr-mark.cedido{background:#e8f3ff;color:#0b3b66;border:0;font-weight:700;padding:1px 6px;border-radius:999px;font-size:11px}
+
+/* v4.15 · relatório imprimível das trocas do WhatsApp */
+.wa-mes-lab{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--sub);white-space:nowrap}
+.wa-mes-lab select{font:inherit;font-weight:600;color:var(--navy);padding:6px 10px;border:1px solid var(--line);border-radius:9px;background:#fff}
+@media print{
+  @page trocas{size:A4 landscape;margin:10mm 8mm}
+  body.printing-trocas{page:trocas}
+  body.printing-trocas .trocas-print-tbl{width:100%;border-collapse:collapse;table-layout:auto;font-size:9pt;color:#000}
+  body.printing-trocas .trocas-print-tbl th,body.printing-trocas .trocas-print-tbl td{border:0.4pt solid #333;padding:1.8mm 2.2mm;text-align:left;vertical-align:top;color:#000}
+  body.printing-trocas .trocas-print-tbl thead{display:table-header-group}
+  body.printing-trocas .trocas-print-tbl thead th{background:#eee!important;color:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:8.5pt;font-weight:700}
+  body.printing-trocas .trocas-print-tbl tr,body.printing-trocas .trocas-print-tbl td,body.printing-trocas .trocas-print-tbl th{break-inside:avoid;page-break-inside:avoid}
+  body.printing-trocas .trocas-print-tbl .muted{color:#333!important}
+  body.printing-trocas .sidebar,body.printing-trocas .topbar,body.printing-trocas .bottom-nav,
+  body.printing-trocas .menu-btn,body.printing-trocas #toast,body.printing-trocas #modalRoot,
+  body.printing-trocas #envPill,body.printing-trocas .page-head,body.printing-trocas .tabs,
+  body.printing-trocas .head-actions,body.printing-trocas .content,body.printing-trocas .doc-top,
+  body.printing-ponto .shell,body.printing-ponto #login,body.printing-trocas .shell,body.printing-trocas #login{display:none!important}
+  body.printing-trocas .trocas-print-tbl th:nth-child(5),body.printing-trocas .trocas-print-tbl td:nth-child(5){white-space:nowrap;width:32mm}
+  body.printing-trocas .trocas-print-tbl th:nth-child(1),body.printing-trocas .trocas-print-tbl td:nth-child(1){white-space:nowrap;width:28mm}
+}
+
