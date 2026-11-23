@@ -405,9 +405,19 @@ function route() {
   $('#shell').classList.add('hidden'); $('#login').classList.remove('hidden');
   renderLogin();
 }
-function renderFatal(msg) { $('#login').classList.remove('hidden'); $('#shell').classList.add('hidden'); $('#login').innerHTML = `<div class="login-card"><div class="logo big">✚ Escala<b>Med</b></div><h1>Não foi possível iniciar</h1><p class="desc">${esc(msg)}</p><button class="btn primary full" onclick="location.reload()">Tentar novamente</button></div>`; }
+function renderFatal(msg) { $('#login').classList.remove('hidden'); $('#shell').classList.add('hidden'); $('#login').innerHTML = `<div class="login-card"><div class="logo big"><span class="logo-icon">${logoSvg()}</span>Escala<span class="accent">Med</span></div><h1>Não foi possível iniciar</h1><p class="desc">${esc(msg)}</p><button class="btn primary full" onclick="location.reload()">Tentar novamente</button></div>`; }
 function inviteToken() { const m = location.hash.match(/convite=([a-z0-9-]+)/i); return m ? m[1] : null; }
 const pwFields = (confirm = true) => `<div class="field"><label for="pw1">${confirm ? 'Crie uma senha' : 'Senha'}</label><input id="pw1" name="senha" type="password" autocomplete="${confirm ? 'new-password' : 'current-password'}" minlength="${confirm ? 4 : 1}" required>${confirm ? '<small class="hint">Mínimo de 4 caracteres.</small>' : ''}</div>${confirm ? '<div class="field"><label for="pw2">Repita a senha</label><input id="pw2" name="senha2" type="password" autocomplete="new-password" minlength="4" required></div>' : ''}`;
+// painel de marca do login (só visual; escondido no celular)
+function loginBrand() {
+  const ic = p => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+  return `<aside class="login-brand" aria-hidden="true"><div class="lb-top"><span class="lb-mark">${logoSvg()}</span><span class="lb-name">Escala<b>Med</b></span></div>
+    <div class="lb-mid"><h2>Escalas e trocas de plantão, num só lugar.</h2><p>Hospital Municipal Padre Germano Lauck · Foz do Iguaçu</p>
+    <ul><li>${ic('<path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/>')}<span><b>Escala do mês</b> montada e conferida na tela</span></li>
+    <li>${ic('<path d="m8 3-4 4 4 4M4 7h16M16 21l4-4-4-4M20 17H4"/>')}<span><b>Trocas rastreáveis</b>, a escala original fica preservada</span></li>
+    <li>${ic('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>')}<span><b>Escala x cartão ponto</b> e relatório do mês</span></li></ul></div>
+    <div class="lb-foot">HMPGL · EscalaMed</div></aside>`;
+}
 function renderLogin() {
   const L = S.login, k = S.me?.kind, tok = inviteToken();
   let body = '';
@@ -458,8 +468,8 @@ function renderLogin() {
   const demo = !REAL && !k ? `<div class="demo-box"><div class="demo-title">Demonstração · acesso rápido</div><p>Contas de exemplo (senha <b>demo1234</b>, ex.: matrícula <b>105895</b>). Para testar o primeiro acesso, use a matrícula de teste <b>1988</b> (vinicyus teste) ou a <b>101595</b>.</p>
       <div class="demo-grid">${S.data.accounts.map(a => `<button class="btn small" data-act="demoLogin" data-user="${a.user_id}">${a.role === 'master' ? 'MASTER (coordenação)' : a.role === 'escalista' ? esc((n => n[0] + ' ' + n[n.length - 1])(docName(a.doctor_id).split(' '))) + ' (escalista)' : esc((n => n[0] + ' ' + n[n.length - 1])(docName(a.doctor_id).split(' ')))}</button>`).join('')}</div>
       <button class="btn link small" data-act="demoReset">Restaurar demonstração</button></div>` : '';
-  $('#login').innerHTML = `<div class="login-wrap"><div class="login-card"><div class="logo big"><span class="logo-icon">✚</span>Escala<span class="accent">Med</span></div><div class="login-sub">HMPGL · Escalas e trocas de plantão</div>${body}
-    ${!REAL && !k && L.step === 1 && (!L.mode || L.mode === 'medico') ? `<div class="login-foot"><button class="btn link small" data-act="masterLogin">Sou da coordenação (MASTER)</button><button class="btn link small" data-act="newRegistration">Não encontrou sua matrícula? Solicitar cadastro</button></div>` : ''}</div>${demo}</div>`;
+  $('#login').innerHTML = `<div class="login-split">${loginBrand()}<div class="login-wrap"><div class="login-card"><div class="logo big"><span class="logo-icon">${logoSvg()}</span>Escala<span class="accent">Med</span></div><div class="login-sub">HMPGL · Escalas e trocas de plantão</div>${body}
+    ${!REAL && !k && L.step === 1 && (!L.mode || L.mode === 'medico') ? `<div class="login-foot"><button class="btn link small" data-act="masterLogin">Sou da coordenação (MASTER)</button><button class="btn link small" data-act="newRegistration">Não encontrou sua matrícula? Solicitar cadastro</button></div>` : ''}</div>${demo}</div></div>`;
   const inp = $('#matInput'); if (inp) { inp.focus(); inp.value = L.matricula || ''; }
   const staff = $('#userIn'); if (staff) staff.focus();
   const f1 = $('#emailIn') || (L.step === 3 ? $('#pw1') : null); if (f1) f1.focus();
@@ -658,6 +668,27 @@ async function masterForgot(o) {
   const r = u ? demoSendReset(u) : null;
   S.login = { step: 'enviado', sentMsg: 'Se este e-mail tiver conta, enviamos um link para criar a nova senha.', demoMail: r?.demoMail }; renderLogin();
 }
+// ───────── ícones (SVG inline, sem dependências; traços no estilo Lucide, licença ISC) ─────────
+const NAV_SVG = {
+  painel: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+  montar: '<path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M12 14v4M10 16h4"/>',
+  habilitacoes: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  escala: '<path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/>',
+  versoes: '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7M11 18H8a2 2 0 0 1-2-2V9"/>',
+  ponto: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  relatorio: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8"/>',
+  whatsapp: '<path d="m8 3-4 4 4 4M4 7h16M16 21l4-4-4-4M20 17H4"/>',
+  troca: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+  trocas: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  cadastros: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
+  medicos: '<path d="M11 2v2M5 2v2M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/>',
+  contratos: '<path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect x="2" y="6" width="20" height="14" rx="2"/>',
+  assistente: '<path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/>',
+  auditoria: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/>',
+  config: '<path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/>'
+};
+function navIco(k, fallback) { const p = NAV_SVG[k]; return p ? `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>` : fallback; }
+function logoSvg() { return '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9.5 3h5v6.5H21v5h-6.5V21h-5v-6.5H3v-5h6.5z" fill="currentColor"/></svg>'; }
 // ───────── estrutura ─────────
 function navItems() {
   const d = S.data;
@@ -691,8 +722,8 @@ function render() {
     try { $('#content').innerHTML = PAGES.troca(); } catch (e) { console.error(e); $('#content').innerHTML = `<div class="empty">Erro ao montar a tela: ${esc(e.message)}</div>`; }
     return;
   }
-  $('#nav').innerHTML = items.map(([k, ic, label, n]) => `<button class="nav-link ${S.page === k ? 'active' : ''}" data-act="nav" data-page="${k}"><span class="nav-ico">${ic}</span><span class="nav-label">${esc(label)}</span>${n ? `<span class="nav-count">${n}</span>` : ''}</button>`).join('');
-  $('#bottomNav').innerHTML = isMaster() ? '' : items.map(([k, ic, label, n]) => `<button class="${S.page === k ? 'active' : ''}" data-act="nav" data-page="${k}"><span>${ic}</span>${esc(label.replace('Escala do setor', 'Setor').replace('Meus plantões', 'Plantões'))}${n ? `<b>${n}</b>` : ''}</button>`).join('');
+  $('#nav').innerHTML = items.map(([k, ic, label, n]) => `<button class="nav-link ${S.page === k ? 'active' : ''}" data-act="nav" data-page="${k}"><span class="nav-ico">${navIco(k, ic)}</span><span class="nav-label">${esc(label)}</span>${n ? `<span class="nav-count">${n}</span>` : ''}</button>`).join('');
+  $('#bottomNav').innerHTML = isMaster() ? '' : items.map(([k, ic, label, n]) => `<button class="${S.page === k ? 'active' : ''}" data-act="nav" data-page="${k}"><span>${navIco(k, ic)}</span>${esc(label.replace('Escala do setor', 'Setor').replace('Meus plantões', 'Plantões'))}${n ? `<b>${n}</b>` : ''}</button>`).join('');
   const name = isMaster() ? (REAL ? (S.me.display_name || 'BRUNA') : 'Coordenação (MASTER)') : (myDoc()?.name || (S.me.kind === 'escalista' ? 'Escalista' : ''));
   const av = isMaster() ? (REAL ? (name.trim().charAt(0) || 'B') : 'M') : initials(name);
   const sub = isMaster() ? (REAL ? 'MASTER' : '') : (S.me.kind === 'escalista' ? 'Monta a escala' : '');
@@ -6313,6 +6344,6 @@ window.addEventListener('hashchange', () => {
   if (rt) { S.me = null; S.login = { step: 'nova_senha', token: rt[1] }; demoSave(); return route(); }
   if (!S.me && inviteToken()) renderLogin();
 });
-window.EscalaMed = { S, A, version: '4.15', trocasReportHtml, printTrocasReport, Assistente: typeof Assistente !== 'undefined' ? Assistente : null };
+window.EscalaMed = { S, A, version: '4.16', trocasReportHtml, printTrocasReport, Assistente: typeof Assistente !== 'undefined' ? Assistente : null };
 boot();
 })();

@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 900" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <linearGradient id="ceu" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0c3a31"/><stop offset=".38" stop-color="#1c6458"/><stop offset=".55" stop-color="#6fb7a6"/><stop offset=".62" stop-color="#cfe8d9"/></linearGradient>
+    <linearGradient id="queda" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#e2f5f8"/><stop offset="1" stop-color="#ffffff" stop-opacity=".35"/></linearGradient>
+    <linearGradient id="rio" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5cc0d3"/><stop offset=".4" stop-color="#2a93ad"/><stop offset="1" stop-color="#0d5a70"/></linearGradient>
+    <linearGradient id="rocha" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a5a3c"/><stop offset="1" stop-color="#4b3a28"/></linearGradient>
+    <radialGradient id="sol" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff1c4" stop-opacity=".95"/><stop offset=".35" stop-color="#ffe09a" stop-opacity=".45"/><stop offset="1" stop-color="#ffe09a" stop-opacity="0"/></radialGradient>
+    <radialGradient id="nevoa" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="700" height="900" fill="url(#ceu)"/>
+  <circle cx="560" cy="470" r="150" fill="url(#sol)"/>
+  <circle cx="560" cy="470" r="26" fill="#fff4d0"/>
+  <!-- serras distantes -->
+  <path d="M0 520 C70 490 140 505 210 494 C290 480 350 500 430 488 C520 474 600 496 700 484 V600 H0Z" fill="#4d9a7f" opacity=".55"/>
+  <path d="M0 548 C90 528 170 546 260 536 C360 524 450 546 540 534 C610 526 660 540 700 534 V620 H0Z" fill="#2f7d61"/>
+  <!-- patamar superior: borda em ferradura -->
+  <path d="M0 585 C100 572 170 560 250 566 C330 572 360 600 420 604 C500 608 560 580 700 576 V640 H0Z" fill="url(#rocha)"/>
+  <path d="M0 580 C100 566 170 554 250 560 C330 566 360 594 420 598 C500 602 560 574 700 570 V586 C560 590 500 618 420 614 C360 610 330 582 250 576 C170 570 100 582 0 596Z" fill="#1f5e45"/>
+  <g fill="#1c573f"><circle cx="20" cy="572" r="22"/><circle cx="62" cy="566" r="18"/><circle cx="640" cy="566" r="20"/><circle cx="684" cy="562" r="22"/><circle cx="300" cy="568" r="12"/></g>
+  <g fill="url(#queda)">
+    <path d="M40 588 Q70 582 100 586 L104 652 Q72 660 38 654Z"/>
+    <path d="M118 584 Q150 576 184 578 L188 656 Q152 664 116 656Z"/>
+    <path d="M198 574 Q230 566 262 570 L266 660 Q230 668 196 660Z"/>
+    <path d="M276 576 Q330 586 380 602 L382 664 Q330 672 274 664Z"/>
+    <path d="M394 606 Q440 610 478 604 L480 664 Q440 672 392 664Z"/>
+    <path d="M492 600 Q540 592 590 584 L594 662 Q540 670 490 662Z"/>
+    <path d="M604 582 Q640 578 676 576 L680 660 Q640 668 602 660Z"/>
+  </g>
+  <g stroke="#ffffff" stroke-linecap="round" opacity=".75">
+    <path d="M58 592 v56 M80 590 v58 M136 588 v62 M160 584 v66 M214 578 v74 M240 574 v80 M292 582 v74 M318 588 v70 M346 594 v64 M410 608 v52 M446 608 v54 M512 598 v58 M548 592 v64 M574 588 v66 M620 582 v70 M650 580 v72" stroke-width="2"/>
+  </g>
+  <!-- patamar inferior -->
+  <path d="M0 650 C120 644 220 662 350 660 C480 658 580 646 700 652 V700 H0Z" fill="#5a4530"/>
+  <path d="M0 646 C120 640 220 658 350 656 C480 654 580 642 700 648 V658 C580 652 480 666 350 668 C220 670 120 654 0 660Z" fill="#245f47"/>
+  <g fill="url(#queda)">
+    <path d="M20 660 Q90 652 160 660 L166 728 Q90 740 16 730Z"/>
+    <path d="M190 664 Q270 668 340 666 L344 734 Q268 744 186 734Z"/>
+    <path d="M368 666 Q450 664 520 656 L526 730 Q450 742 364 734Z"/>
+    <path d="M548 654 Q610 648 680 652 L686 728 Q610 740 544 730Z"/>
+  </g>
+  <g stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".7">
+    <path d="M50 664 v60 M96 660 v66 M132 662 v64 M222 668 v62 M262 668 v64 M306 668 v62 M400 668 v62 M446 666 v66 M490 662 v66 M580 658 v66 M626 654 v70 M660 656 v68"/>
+  </g>
+  <!-- arco-íris -->
+  <g fill="none" stroke-width="7" opacity=".32">
+    <path d="M90 760 A240 200 0 0 1 570 760" stroke="#ff8a7a"/>
+    <path d="M97 760 A233 193 0 0 1 563 760" stroke="#ffd36e"/>
+    <path d="M104 760 A226 186 0 0 1 556 760" stroke="#9be38d"/>
+    <path d="M111 760 A219 179 0 0 1 549 760" stroke="#7ac8f0"/>
+    <path d="M118 760 A212 172 0 0 1 542 760" stroke="#b49cf0"/>
+  </g>
+  <!-- névoa -->
+  <ellipse cx="120" cy="738" rx="190" ry="34" fill="url(#nevoa)"/>
+  <ellipse cx="400" cy="745" rx="240" ry="38" fill="url(#nevoa)"/>
+  <ellipse cx="640" cy="736" rx="150" ry="30" fill="url(#nevoa)"/>
+  <!-- rio -->
+  <path d="M0 752 C150 744 300 762 460 754 C580 748 650 758 700 754 V900 H0Z" fill="url(#rio)"/>
+  <g stroke="#c9f0f7" stroke-width="2.6" fill="none" stroke-linecap="round" opacity=".75">
+    <path d="M60 800 q22 -8 44 0 t44 0"/><path d="M330 830 q22 -8 44 0 t44 0"/><path d="M520 792 q22 -8 44 0 t44 0"/><path d="M170 868 q22 -8 44 0 t44 0"/><path d="M450 880 q22 -8 44 0 t44 0"/>
+  </g>
+  <!-- folhagem em primeiro plano -->
+  <g fill="#0f3f2e">
+    <path d="M0 900 V820 C20 830 30 850 34 870 C44 840 62 826 84 824 C70 846 66 870 70 900Z"/>
+    <path d="M700 900 V800 C680 812 668 836 664 862 C652 836 634 822 612 822 C628 846 632 872 628 900Z"/>
+  </g>
+  <!-- aves -->
+  <g stroke="#e6f4ec" stroke-width="2.4" fill="none" stroke-linecap="round" opacity=".7"><path d="M420 400 q10 -9 20 0 q10 -9 20 0"/><path d="M470 378 q8 -7 16 0 q8 -7 16 0"/></g>
+</svg>

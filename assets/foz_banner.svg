@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 180" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <linearGradient id="ceu" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a9dbe6"/><stop offset=".6" stop-color="#dff1ea"/><stop offset="1" stop-color="#f3f0e2"/></linearGradient>
+    <linearGradient id="queda" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#def3f7"/><stop offset="1" stop-color="#ffffff" stop-opacity=".3"/></linearGradient>
+    <linearGradient id="rio" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55bcd1"/><stop offset="1" stop-color="#1b7f9c"/></linearGradient>
+    <radialGradient id="sol" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff3c8"/><stop offset="1" stop-color="#fff3c8" stop-opacity="0"/></radialGradient>
+    <radialGradient id="nevoa" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1440" height="180" fill="url(#ceu)"/>
+  <circle cx="1010" cy="40" r="80" fill="url(#sol)"/><circle cx="1010" cy="40" r="15" fill="#ffe08a"/>
+  <path d="M0 96 C140 76 250 90 380 80 S620 64 760 76 980 66 1120 78 1320 64 1440 80 V180 H0Z" fill="#8cc7a6" opacity=".55"/>
+  <!-- Ponte da Amizade -->
+  <g transform="translate(1080 70)" fill="none" stroke="#557f8a" stroke-linecap="round" opacity=".85">
+    <path d="M0 44 H340" stroke-width="3"/>
+    <path d="M90 44 Q170 -6 250 44" stroke-width="3"/>
+    <path d="M110 44 V30 M130 44 V20 M150 44 V14 M170 44 V12 M190 44 V14 M210 44 V20 M230 44 V30" stroke-width="1.6"/>
+    <path d="M40 44 V58 M300 44 V58" stroke-width="3"/>
+  </g>
+  <!-- mata e borda em ferradura -->
+  <path d="M0 108 C120 96 200 104 300 100 C380 96 420 104 470 112 C560 124 640 124 720 112 C780 104 840 96 960 96 C1100 96 1260 104 1440 98 V140 H0Z" fill="#6b5236"/>
+  <path d="M0 104 C120 92 200 100 300 96 C380 92 420 100 470 108 C560 120 640 120 720 108 C780 100 840 92 960 92 C1100 92 1260 100 1440 94 V104 C1260 110 1100 102 960 102 C840 102 780 110 720 118 C640 130 560 130 470 118 C420 110 380 102 300 106 C200 110 120 102 0 114Z" fill="#2a7350"/>
+  <g fill="#215e41">
+    <circle cx="30" cy="104" r="16"/><circle cx="66" cy="98" r="20"/><circle cx="108" cy="102" r="15"/><circle cx="150" cy="98" r="18"/><circle cx="196" cy="100" r="14"/><circle cx="240" cy="95" r="17"/>
+    <circle cx="880" cy="92" r="16"/><circle cx="920" cy="88" r="19"/><circle cx="966" cy="92" r="15"/><circle cx="1014" cy="90" r="18"/><circle cx="1060" cy="94" r="14"/><circle cx="1400" cy="94" r="18"/>
+  </g>
+  <g fill="url(#queda)">
+    <path d="M300 104 Q330 100 360 102 L362 142 Q330 148 298 142Z"/>
+    <path d="M372 100 Q400 98 430 104 L432 144 Q400 150 370 144Z"/>
+    <path d="M440 108 Q480 118 520 122 L522 148 Q480 154 438 148Z"/>
+    <path d="M530 124 Q580 128 630 124 L632 150 Q580 156 528 150Z"/>
+    <path d="M640 122 Q680 118 712 110 L714 146 Q680 152 638 146Z"/>
+    <path d="M724 106 Q770 98 820 96 L822 142 Q770 148 722 142Z"/>
+    <path d="M832 96 Q860 94 890 96 L892 140 Q860 146 830 140Z"/>
+  </g>
+  <g stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".75">
+    <path d="M316 106 v34 M340 104 v36 M390 102 v40 M414 104 v38 M460 112 v34 M500 120 v26 M560 128 v20 M600 128 v20 M664 120 v24 M694 114 v30 M748 102 v38 M790 98 v42 M852 98 v40 M874 98 v40"/>
+  </g>
+  <g fill="none" stroke-width="3.5" opacity=".35">
+    <path d="M430 160 A170 70 0 0 1 770 160" stroke="#ff8a7a"/><path d="M434 160 A166 66 0 0 1 766 160" stroke="#ffd36e"/><path d="M438 160 A162 62 0 0 1 762 160" stroke="#9be38d"/><path d="M442 160 A158 58 0 0 1 758 160" stroke="#7ac8f0"/>
+  </g>
+  <ellipse cx="420" cy="146" rx="140" ry="16" fill="url(#nevoa)"/><ellipse cx="620" cy="150" rx="170" ry="18" fill="url(#nevoa)"/><ellipse cx="830" cy="144" rx="110" ry="14" fill="url(#nevoa)"/>
+  <path d="M0 146 C220 142 380 152 620 150 C860 148 1080 154 1440 146 V180 H0Z" fill="url(#rio)"/>
+  <g stroke="#c9f0f7" stroke-width="2" fill="none" stroke-linecap="round" opacity=".8">
+    <path d="M90 160 q18 -6 36 0 t36 0"/><path d="M980 164 q18 -6 36 0 t36 0"/><path d="M1240 158 q18 -6 36 0 t36 0"/>
+  </g>
+  <path d="M0 170 C200 162 360 176 560 170 C760 164 940 178 1160 170 C1290 165 1380 170 1440 168 V180 H0Z" fill="#f7f2e8"/>
+  <g stroke="#2b4b3c" stroke-width="2" fill="none" stroke-linecap="round" opacity=".55">
+    <path d="M560 34 q8 -7 16 0 q8 -7 16 0"/><path d="M610 22 q6 -5 12 0 q6 -5 12 0"/>
+  </g>
+</svg>
