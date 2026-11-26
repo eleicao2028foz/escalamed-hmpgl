@@ -6344,6 +6344,6 @@ window.addEventListener('hashchange', () => {
   if (rt) { S.me = null; S.login = { step: 'nova_senha', token: rt[1] }; demoSave(); return route(); }
   if (!S.me && inviteToken()) renderLogin();
 });
-window.EscalaMed = { S, A, version: '4.16', trocasReportHtml, printTrocasReport, Assistente: typeof Assistente !== 'undefined' ? Assistente : null };
+window.EscalaMed = { S, A, version: '4.17', trocasReportHtml, printTrocasReport, Assistente: typeof Assistente !== 'undefined' ? Assistente : null };
 boot();
 })();
