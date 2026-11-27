@@ -135,6 +135,155 @@ body:has(#shell:not(.hidden)){height:100vh;overflow:hidden;background:var(--ambi
 .nav-link.active::after{bottom:-12px;background:radial-gradient(circle at 0 100%,transparent 12px,#fff 12.5px)}
 .side-foot{flex-shrink:0;padding:10px 12px 0 4px;margin-right:10px;border-top:0;color:var(--glass-muted);font-size:11px;font-weight:700;line-height:1.45;position:relative;z-index:1}
 
+/* ── Hermes: visor + texto + microfone, no vão entre o menu e o rodapé ── */
+.hermes{
+  flex:0 0 auto;margin:4px 10px 6px 4px;padding:7px 7px 6px;
+  border-radius:16px;color:var(--glass-text);position:relative;z-index:1;
+  background:rgba(5,12,24,.38);
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
+}
+.hermes-visor{
+  --px:0;--py:0;--blink:0;--mouth:0;--eye:1;
+  position:relative;height:76px;border-radius:14px;
+  background:#07141c;
+  box-shadow:
+    0 0 0 1px rgba(120,210,235,.28),
+    inset 0 0 0 3px #07141c,
+    inset 0 0 18px rgba(40,170,200,.12);
+  overflow:hidden;
+}
+.hermes-screen{
+  position:absolute;inset:5px;border-radius:10px;overflow:hidden;
+  background:radial-gradient(120% 100% at 50% 42%, #0d3344 0%, #071820 48%, #040c12 100%);
+  border:1px solid rgba(120,220,245,.42);
+  box-shadow:inset 0 0 16px rgba(60,200,230,.16);
+  display:flex;align-items:center;justify-content:center;
+}
+.hermes-screen::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:2;border-radius:inherit;
+  background:radial-gradient(90% 80% at 50% 45%, transparent 40%, rgba(0,0,0,.38) 100%);
+}
+.hermes-screen::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:3;border-radius:inherit;
+  background:repeating-linear-gradient(to bottom, rgba(0,0,0,.28) 0 1px, transparent 1px 3px);
+}
+.hermes-face{
+  position:relative;z-index:1;width:88%;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+.hermes-brow-row,.hermes-eye-row{display:flex;justify-content:center;align-items:center;width:100%}
+.hermes-brow-row{gap:28px}
+.hermes-eye-row{gap:18px}
+.hermes-brow{
+  width:32px;height:3px;border-radius:99px;background:#7aefff;
+  box-shadow:0 0 6px #5cefff, 0 0 12px rgba(94,231,255,.55);
+  transform-origin:center;
+  transition:transform .18s ease;
+}
+.hermes-visor[data-state="listen"] .hermes-brow{transform:translateY(-2px)}
+.hermes-visor[data-state="think"] .hermes-brow.left{transform:translateY(-1px) rotate(-8deg)}
+.hermes-visor[data-state="think"] .hermes-brow.right{transform:translateY(-2px) rotate(7deg)}
+.hermes-eye{
+  position:relative;width:52px;height:20px;border-radius:999px;overflow:hidden;flex:0 0 auto;
+  background:repeating-linear-gradient(to bottom, #8af4ff 0 1.5px, rgba(4,16,24,.45) 1.5px 3.1px);
+  box-shadow:0 0 6px rgba(122,239,255,.95), 0 0 12px rgba(94,231,255,.45);
+  transform-origin:center;
+  transform:scaleY(calc((1 - var(--blink) * .92) * var(--eye)));
+}
+.hermes-pupil{
+  position:absolute;width:6px;height:6px;border-radius:1px;
+  left:calc(50% - 3px);top:calc(50% - 3px);
+  background:#021016;
+  box-shadow:0 0 0 1px rgba(220,255,255,.8);
+  transform:translate(calc(var(--px) * 8px), calc(var(--py) * 4px));
+}
+.hermes-nose{
+  width:3px;height:9px;border-radius:99px;margin:-1px 0 -2px;background:#7aefff;
+  box-shadow:0 0 6px #5cefff;
+}
+.hermes-mouth{
+  width:48px;height:calc(6px + var(--mouth) * 12px);
+  border-radius:0 0 40px 40px;
+  border:2px solid transparent;
+  border-bottom-color:#7aefff;
+  box-shadow:0 2px 6px rgba(94,231,255,.55);
+  background:transparent;
+  transform-origin:center;
+}
+.hermes-visor[data-state="speak"] .hermes-mouth{
+  border-radius:999px;
+  border-color:#7aefff;
+  background:rgba(94,231,255,calc(.12 + var(--mouth) * .4));
+  box-shadow:0 0 8px rgba(94,231,255,.8);
+}
+.hermes-visor[data-state="error"] .hermes-mouth{transform:scaleY(-1)}
+.hermes-visor[data-state="listen"]{
+  box-shadow:
+    0 0 0 1px rgba(140,230,255,.55),
+    0 0 14px rgba(94,231,255,.22),
+    inset 0 0 0 3px #07141c;
+}
+.hermes-status{
+  margin:5px 2px 0;padding:3px 8px;border-radius:10px;
+  font-size:11px;font-weight:700;line-height:1.35;color:#d5e6f6;
+  background:rgba(255,255,255,.06);
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+  overflow:hidden;overflow-wrap:anywhere;
+}
+.hermes-status[hidden]{display:none!important}
+.hermes-status[data-kind="status"]{color:#9ee8ff;background:transparent;padding:2px 4px 0}
+.hermes-status[data-kind="error"]{color:#ffd0c8;background:rgba(160,48,48,.18)}
+.hermes-row{display:flex;align-items:center;gap:6px;margin-top:6px}
+.hermes-row input[type=text]{
+  flex:1 1 auto;min-width:0;height:30px;padding:0 10px;margin:0;
+  border-radius:999px;border:1px solid rgba(158,210,255,.32);
+  background:rgba(4,14,24,.55);color:#eaf6ff;
+  font-size:12.5px;font-weight:700;letter-spacing:-.1px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
+.hermes-row input[type=text]::placeholder{color:#8aa4c0;font-weight:700}
+.hermes-row input[type=text]:focus{border-color:rgba(140,220,255,.7);outline:none}
+.hermes-mic{
+  flex:0 0 30px;width:30px;height:30px;padding:0;border-radius:50%;
+  display:grid;place-items:center;color:#9ee8ff;
+  border:1px solid rgba(158,210,255,.38);
+  background:rgba(255,255,255,.08);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2);
+}
+.hermes-mic:hover{background:rgba(255,255,255,.16);color:#fff}
+.hermes-mic:disabled{opacity:.45;cursor:default}
+.hermes-mic.is-listen{
+  color:#eaffff;background:#13485c;border-color:rgba(140,230,255,.7);
+  animation:hermes-pulse 1.15s ease-in-out infinite;
+}
+.hermes-mic.is-speak{color:#fff;background:rgba(94,231,255,.22);border-color:rgba(160,240,255,.8)}
+.hermes-ico{display:block}
+.hermes-ico-stop{display:none}
+.hermes-mic.is-speak .hermes-ico-mic{display:none}
+.hermes-mic.is-speak .hermes-ico-stop{display:block}
+@keyframes hermes-pulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(94,231,255,.45)}
+  70%{box-shadow:0 0 0 5px rgba(94,231,255,0)}
+}
+@media (max-height:760px){
+  .hermes{padding:6px 6px 5px;margin-bottom:4px}
+  .hermes-visor{height:68px}
+  .hermes-eye{width:48px;height:18px}
+  .hermes-brow{width:28px}
+  .hermes-mouth{width:44px}
+  .hermes-row{margin-top:5px}
+  .hermes-row input[type=text],.hermes-mic{height:28px}
+  .hermes-mic{flex-basis:28px;width:28px}
+}
+@media (max-width:900px){
+  .hermes-row input[type=text]{font-size:16px}
+}
+@media (prefers-reduced-motion:reduce){
+  .hermes-brow,.hermes-eye,.hermes-mouth{transition:none}
+  .hermes-mic.is-listen{animation:none}
+}
+
 /* ── painel principal ── */
 .main{
   flex:1 1 auto;min-width:0;height:100%;max-height:100%;
