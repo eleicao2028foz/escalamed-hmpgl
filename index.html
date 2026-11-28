@@ -12,7 +12,7 @@
 <link rel="preload" href="vendor/fonts/Nunito-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css?v=20261126v417">
 <link rel="stylesheet" href="theme_foz.css?v=20261126v417">
-<link rel="stylesheet" href="theme_vidro.css?v=20261127h1">
+<link rel="stylesheet" href="theme_vidro.css?v=20261127h2">
 </head>
 <body>
 <div id="login" class="login hidden"></div>
@@ -41,6 +41,9 @@
         <p class="hermes-status" id="hermesStatus" hidden></p>
         <form class="hermes-row" id="hermesForm" autocomplete="off">
           <input id="hermesInput" type="text" maxlength="600" placeholder="Pergunte algo…" aria-label="Mensagem para o Hermes" enterkeyhint="send" autocomplete="off">
+          <button type="button" class="hermes-mic hermes-speaker" id="hermesSpeaker" aria-label="Repetir a fala" title="Repetir a fala" hidden>
+            <svg class="hermes-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+          </button>
           <button type="button" class="hermes-mic" id="hermesMic" aria-label="Falar com o Hermes" aria-pressed="false">
             <svg class="hermes-ico hermes-ico-mic" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 18v3"/></svg>
             <svg class="hermes-ico hermes-ico-stop" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>
@@ -67,6 +70,6 @@
 <!-- Somente no modo demonstração (sem Supabase). Em produção pode ser removido. -->
 <!-- demo_data.js omitido no modo real (produção). -->
 <script src="app.js?v=20261126v417"></script>
-<script src="hermes.js?v=20261127h1"></script>
+<script src="hermes.js?v=20261127h2"></script>
 </body>
 </html>

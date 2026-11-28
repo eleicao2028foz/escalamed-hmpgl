@@ -258,6 +258,8 @@ body:has(#shell:not(.hidden)){height:100vh;overflow:hidden;background:var(--ambi
   animation:hermes-pulse 1.15s ease-in-out infinite;
 }
 .hermes-mic.is-speak{color:#fff;background:rgba(94,231,255,.22);border-color:rgba(160,240,255,.8)}
+.hermes-speaker[hidden]{display:none!important}
+.hermes-speaker.is-pending{color:#fff;background:#13485c;border-color:rgba(140,230,255,.8);animation:hermes-pulse 1.15s ease-in-out infinite}
 .hermes-ico{display:block}
 .hermes-ico-stop{display:none}
 .hermes-mic.is-speak .hermes-ico-mic{display:none}
@@ -281,7 +283,7 @@ body:has(#shell:not(.hidden)){height:100vh;overflow:hidden;background:var(--ambi
 }
 @media (prefers-reduced-motion:reduce){
   .hermes-brow,.hermes-eye,.hermes-mouth{transition:none}
-  .hermes-mic.is-listen{animation:none}
+  .hermes-mic.is-listen,.hermes-speaker.is-pending{animation:none}
 }
 
 /* ── painel principal ── */

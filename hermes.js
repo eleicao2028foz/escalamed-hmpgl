@@ -10,7 +10,8 @@
   const mic = document.getElementById('hermesMic');
   const statusEl = document.getElementById('hermesStatus');
   const region = document.getElementById('hermes');
-  if (!visor || !form || !input || !mic || !statusEl || !region) return;
+  const speakerBtn = document.getElementById('hermesSpeaker');
+  if (!visor || !form || !input || !mic || !statusEl || !region || !speakerBtn) return;
 
   const FN = '/functions/v1/hermes-assistant';
   const MAX_MSGS = 8;
@@ -97,12 +98,109 @@
     if (last && last.role === 'user' && last.content === text) msgs.pop();
   }
 
+  // ── Áudio no iPhone/Safari ───────────────────────────────────────────────
+  // O Safari iOS só deixa tocar som se o play() nascer de um toque, e a resposta do Hermes
+  // chega segundos depois (fora do gesto). Por isso, a cada toque (enviar, microfone, alto-falante)
+  // "destravamos" tudo de uma vez: sessão de áudio em "playback" (toca mesmo no modo silencioso),
+  // AudioContext, um <audio> reutilizável e o speechSynthesis. Depois a fala usa o que já foi liberado.
+  const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+  let audioEl = null;
+  let audioElUnlocked = false;
+  let synthPrimed = false;
+  let ptVoice = null;
+  let lastReply = null;      // { text, buf } da última resposta (para o botão repetir sem gastar outra chamada)
+  let elUrl = '';
+
+  function withTimeout(promise, ms) {
+    return new Promise(function (resolve, reject) {
+      const id = setTimeout(function () { reject(fail('timeout')); }, ms);
+      promise.then(function (v) { clearTimeout(id); resolve(v); }, function (e) { clearTimeout(id); reject(e); });
+    });
+  }
+
+  function pickVoice() {
+    try {
+      const voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || [];
+      if (!voices.length) return null;
+      const br = voices.filter(function (v) { return /^pt[-_]BR$/i.test(v.lang); });
+      const any = voices.filter(function (v) { return /^pt/i.test(v.lang); });
+      const pool = br.length ? br : any;
+      ptVoice = pool.filter(function (v) { return /luciana|francisca|maria|google/i.test(v.name); })[0] || pool[0] || null;
+    } catch (e) { /* sem vozes ainda */ }
+    return ptVoice;
+  }
+  if (window.speechSynthesis) {
+    pickVoice();
+    try { window.speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) { /* ignore */ }
+  }
+
+  function ensureAudioEl() {
+    if (audioEl) return audioEl;
+    const el = document.createElement('audio');
+    el.setAttribute('playsinline', '');
+    el.setAttribute('webkit-playsinline', '');
+    el.preload = 'auto';
+    el.volume = 1;
+    el.style.display = 'none';
+    (region || document.body).appendChild(el);
+    audioEl = el;
+    return el;
+  }
+
   function primeAudio() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
-    if (!audioCtx || audioCtx.state === 'closed') audioCtx = new AC();
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(function () {});
+    if (!audioCtx || audioCtx.state === 'closed') {
+      audioCtx = new AC();
+      try { audioCtx.onstatechange = function () { /* retomado no próximo toque */ }; } catch (e) { /* ignore */ }
+    }
+    // no iOS o estado pode ser "interrupted" (depois do ditado ou de voltar de outro app), não só "suspended"
+    if (audioCtx.state !== 'running') {
+      try { const r = audioCtx.resume(); if (r && r.catch) r.catch(function () {}); } catch (e) { /* ignore */ }
+    }
     return audioCtx;
+  }
+
+  // Chamar de DENTRO de um toque (síncrono). Barato e seguro de repetir.
+  function unlockAudio() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* sem API */ }
+    const ctx = primeAudio();
+    if (ctx) {
+      try {
+        const b = ctx.createBuffer(1, 1, 22050);
+        const s = ctx.createBufferSource();
+        s.buffer = b;
+        s.connect(ctx.destination);
+        s.start(0);
+      } catch (e) { /* ignore */ }
+    }
+    try {
+      const el = ensureAudioEl();
+      if (!audioElUnlocked) {
+        el.src = SILENT_WAV;
+        const pr = el.play();
+        if (pr && pr.then) {
+          pr.then(function () { audioElUnlocked = true; try { el.pause(); } catch (e) { /* ignore */ } },
+            function () { /* o próximo toque tenta de novo */ });
+        } else audioElUnlocked = true;
+      }
+    } catch (e) { /* ignore */ }
+    try {
+      const synth = window.speechSynthesis;
+      if (synth && typeof SpeechSynthesisUtterance !== 'undefined') {
+        pickVoice();
+        if (!synthPrimed) {
+          const u = new SpeechSynthesisUtterance(' ');
+          u.volume = 0;
+          u.lang = 'pt-BR';
+          synth.speak(u);
+          synthPrimed = true;
+        } else if (synth.paused) {
+          synth.resume();
+        }
+      }
+    } catch (e) { /* ignore */ }
   }
 
   function stopSpeaking() {
@@ -113,6 +211,9 @@
     source = null;
     if (src) {
       try { src.onended = null; src.stop(); } catch (e) { /* já parou */ }
+    }
+    if (audioEl && !audioEl.paused) {
+      try { audioEl.pause(); } catch (e) { /* ignore */ }
     }
     try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* sem voz */ }
     setLevel(0);
@@ -190,20 +291,84 @@
   }
 
   async function fetchTts(text) {
-    const res = await hermesFetch({ action: 'tts', text: String(text || '') });
-    if (!res.ok) throw fail('tts');
-    const type = String(res.headers.get('content-type') || '').toLowerCase();
-    if (type.indexOf('json') !== -1 || type.indexOf('text/') === 0) throw fail('tts');
-    const buf = await res.arrayBuffer();
-    if (!buf || buf.byteLength < 44) throw fail('tts');
-    return buf;
+    const ctrl = new AbortController();
+    const timer = setTimeout(function () { try { ctrl.abort(); } catch (e) { /* ignore */ } }, 12000);
+    try {
+      const res = await hermesFetch({ action: 'tts', text: String(text || '') }, ctrl.signal);
+      if (!res.ok) throw fail('tts');
+      const type = String(res.headers.get('content-type') || '').toLowerCase();
+      if (type.indexOf('json') !== -1 || type.indexOf('text/') === 0) throw fail('tts');
+      const buf = await res.arrayBuffer();
+      if (!buf || buf.byteLength < 44) throw fail('tts');
+      return buf;
+    } catch (e) {
+      throw (e && e.code) ? e : fail('tts');
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // Envelope sintético da boca (quando não há analisador de áudio).
+  function fakeLipsync(isAlive) {
+    const t0 = performance.now();
+    const step = function (now) {
+      if (!isAlive()) return;
+      const t = (now - t0) / 1000;
+      const env = Math.abs(Math.sin(t * 9)) * (0.45 + 0.55 * Math.abs(Math.sin(t * 2.3)));
+      setLevel(0.035 + env * 0.15);
+      speakRaf = requestAnimationFrame(step);
+    };
+    speakRaf = requestAnimationFrame(step);
+  }
+
+  // Toca o WAV no <audio> já destravado: é o caminho mais confiável no iOS (e ignora o botão de silencioso).
+  function playElement(buf, my, gen) {
+    return new Promise(function (resolve, reject) {
+      if (my !== turn || gen !== speakGen) return resolve(true);
+      const el = ensureAudioEl();
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* ignore */ }
+      if (elUrl) { try { URL.revokeObjectURL(elUrl); } catch (e) { /* ignore */ } }
+      elUrl = URL.createObjectURL(new Blob([buf.slice(0)], { type: 'audio/wav' }));
+      let settled = false;
+      let started = false;
+      const alive = function () { return !settled && gen === speakGen && my === turn; };
+      const finish = function (ok, err) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(guard);
+        el.onended = el.onerror = el.onplaying = null;
+        if (playResolve === finishPlay) playResolve = null;
+        if (speakRaf) cancelAnimationFrame(speakRaf);
+        speakRaf = 0;
+        if (gen === speakGen && my === turn) setLevel(0);
+        if (ok) resolve(true); else reject(err || fail('tts'));
+      };
+      const finishPlay = function () { finish(true); };
+      playResolve = finishPlay;
+      el.onplaying = function () { started = true; };
+      el.onended = function () { finish(true); };
+      el.onerror = function () { finish(false, fail('tts')); };
+      const guard = setTimeout(function () { if (!started) finish(false, fail('timeout')); }, 4000);
+      el.src = elUrl;
+      el.currentTime = 0;
+      setState('speak');
+      let pr;
+      try { pr = el.play(); } catch (e) { return finish(false, fail('blocked')); }
+      if (pr && pr.then) {
+        pr.then(function () { audioElUnlocked = true; started = true; fakeLipsync(alive); },
+          function () { finish(false, fail('blocked')); });
+      } else { started = true; fakeLipsync(alive); }
+    });
   }
 
   function playBuffer(buf, my, gen) {
     const ctx = primeAudio();
     if (!ctx) return Promise.reject(fail('tts'));
-    const ready = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
-    return ready.then(function () { return ctx.decodeAudioData(buf.slice(0)); }).then(function (audioBuf) {
+    const ready = ctx.state === 'running' ? Promise.resolve() : withTimeout(ctx.resume(), 1500);
+    return ready.then(function () {
+      if (ctx.state !== 'running') throw fail('suspended');
+      return ctx.decodeAudioData(buf.slice(0));
+    }).then(function (audioBuf) {
       if (my !== turn || gen !== speakGen) return;
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 512;
@@ -243,73 +408,107 @@
     });
   }
 
+  // Última opção: voz do próprio aparelho. Resolve true se chegou a falar.
   function playFallback(text, my, gen) {
     return new Promise(function (resolve) {
-      if (my !== turn || gen !== speakGen) return resolve();
+      if (my !== turn || gen !== speakGen) return resolve(true);
       const synth = window.speechSynthesis;
-      if (!synth || typeof SpeechSynthesisUtterance === 'undefined') return resolve();
+      if (!synth || typeof SpeechSynthesisUtterance === 'undefined') return resolve(false);
       let settled = false;
+      let started = false;
+      let cap = 0;
+      let startGuard = 0;
       const finish = function () {
         if (settled) return;
         settled = true;
+        clearTimeout(cap);
+        clearTimeout(startGuard);
         if (playResolve === finish) playResolve = null;
         if (speakRaf) cancelAnimationFrame(speakRaf);
         speakRaf = 0;
         if (gen === speakGen && my === turn) setLevel(0);
-        resolve();
+        resolve(started);
       };
       playResolve = finish;
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'pt-BR';
-      try {
-        const voices = synth.getVoices() || [];
-        const voice = voices.filter(function (v) { return /pt-BR/i.test(v.lang); })[0]
-          || voices.filter(function (v) { return /^pt/i.test(v.lang); })[0];
-        if (voice) u.voice = voice;
-      } catch (e) { /* segue com a voz padrão */ }
-      const cap = setTimeout(finish, Math.min(15000, 1400 + String(text || '').length * 45));
-      u.onend = u.onerror = function () { clearTimeout(cap); finish(); };
+      u.rate = 1;
+      u.volume = 1;
+      const v = ptVoice || pickVoice();
+      if (v) u.voice = v;
+      cap = setTimeout(finish, Math.min(30000, 2500 + String(text || '').length * 70));
+      u.onstart = function () { started = true; clearTimeout(startGuard); };
+      u.onend = u.onerror = function () { finish(); };
+      // se em 2,5 s não começou a falar, o iOS bloqueou: avisa em vez de ficar mudo e parado
+      startGuard = setTimeout(function () { if (!started) { try { synth.cancel(); } catch (e) { /* ignore */ } finish(); } }, 2500);
       setState('speak');
       try {
         synth.cancel();
+        if (synth.paused) synth.resume();
         synth.speak(u);
       } catch (e) {
-        clearTimeout(cap);
         finish();
         return;
       }
-      const t0 = performance.now();
-      const step = function (now) {
-        if (settled || gen !== speakGen || my !== turn) return;
-        const t = (now - t0) / 1000;
-        if (synth.speaking === false && t > 0.3) {
-          clearTimeout(cap);
-          finish();
-          return;
-        }
-        const env = Math.abs(Math.sin(t * 9)) * (0.45 + 0.55 * Math.abs(Math.sin(t * 2.3)));
-        setLevel(0.035 + env * 0.15);
-        speakRaf = requestAnimationFrame(step);
-      };
-      speakRaf = requestAnimationFrame(step);
+      fakeLipsync(function () { return !settled && gen === speakGen && my === turn; });
     });
   }
 
-  async function speakReply(text, my) {
+  function markPending(on) {
+    speakerBtn.classList.toggle('is-pending', !!on);
+    if (on) {
+      speakerBtn.title = 'Toque para ouvir a resposta';
+      speakerBtn.setAttribute('aria-label', 'Toque para ouvir a resposta');
+    } else {
+      speakerBtn.title = 'Repetir a fala';
+      speakerBtn.setAttribute('aria-label', 'Repetir a fala');
+    }
+  }
+
+  // Tenta, em ordem: <audio> destravado (iOS) / WebAudio (resto) → o outro → voz do aparelho.
+  async function speakReply(text, my, cachedBuf) {
     const gen = speakGen;
     setState('speak');
-    try {
-      const buf = await fetchTts(text);
-      if (my !== turn || gen !== speakGen) return;
-      await playBuffer(buf, my, gen);
-    } catch (e) {
-      if (my !== turn || gen !== speakGen) return;
-      await playFallback(text, my, gen);
+    let buf = cachedBuf || null;
+    let spoke = false;
+    if (!buf) {
+      try { buf = await fetchTts(text); } catch (e) { buf = null; }
     }
+    if (my !== turn || gen !== speakGen) return;
+    if (buf) {
+      lastReply = { text: text, buf: buf };
+      const order = IS_IOS ? [playElement, playBuffer] : [playBuffer, playElement];
+      for (let i = 0; i < order.length && !spoke; i++) {
+        try {
+          await order[i](buf, my, gen);
+          spoke = true;
+        } catch (e) {
+          if (my !== turn || gen !== speakGen) return;
+        }
+      }
+    }
+    if (!spoke) {
+      if (!lastReply || lastReply.text !== text) lastReply = { text: text, buf: null };
+      spoke = await playFallback(text, my, gen);
+      if (my !== turn || gen !== speakGen) return;
+    }
+    speakerBtn.hidden = false;
+    markPending(!spoke);
+    if (!spoke && IS_IOS) showStatus('Toque no 🔊 para ouvir a resposta.', 'status');
     if (my === turn && gen === speakGen && state === 'speak') {
       setLevel(0);
       setState('idle');
     }
+  }
+
+  function repeatSpeech() {
+    unlockAudio();                       // dentro do toque
+    if (!lastReply) return;
+    if (state === 'speak') { stopSpeaking(); return; }
+    stopSpeaking();
+    const my = turn;
+    markPending(false);
+    speakReply(lastReply.text, my, lastReply.buf);
   }
 
   function friendly(e) {
@@ -329,6 +528,7 @@
     if (listening) stopListen(false);
     busy = true;
     const my = ++turn;
+    markPending(false);
     input.value = '';
     setState('think');
     showStatus('Consultando…', 'status');
@@ -439,6 +639,9 @@
     stopSpeaking();
     if (listening) stopListen(false);
     msgs.length = 0;
+    lastReply = null;
+    speakerBtn.hidden = true;
+    markPending(false);
     input.value = '';
     busy = false;
     mic.disabled = false;
@@ -495,16 +698,34 @@
     requestAnimationFrame(faceFrame);
   }
 
+  // Destrava o áudio já no primeiro toque no campo/botões (antes de qualquer espera de rede).
+  let lastUnlock = 0;
+  ['pointerdown', 'touchstart', 'touchend', 'click', 'keydown'].forEach(function (ev) {
+    region.addEventListener(ev, function (e) {
+      if (ev === 'keydown' && e.key !== 'Enter') return;
+      const now = Date.now();
+      if (now - lastUnlock < 350) return;
+      lastUnlock = now;
+      unlockAudio();
+    }, { capture: true, passive: true });
+  });
+  speakerBtn.addEventListener('click', function (e) { e.preventDefault(); repeatSpeech(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && audioCtx && audioCtx.state !== 'running') {
+      try { audioCtx.resume().catch(function () {}); } catch (e) { /* ignore */ }
+    }
+  });
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     e.stopPropagation();
-    primeAudio();
+    unlockAudio();
     if (listening) stopListen(false);
     send(input.value);
   });
 
   mic.addEventListener('click', function () {
-    primeAudio();
+    unlockAudio();
     if (state === 'speak') { stopSpeaking(); return; }
     if (listening) { stopListen(true); return; }
     if (busy) return;
